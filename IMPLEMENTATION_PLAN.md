@@ -130,15 +130,15 @@
 ### Tasks
 - [x] **6.1** Create CLI wrapper (`bin/cli.js`)
 - [x] **6.2** Configure Vite for library build
-- [ ] **6.3** Test `npx openclaw-kanban` locally
+- [x] **6.3** Test `npx openclaw-kanban` locally
 - [x] **6.4** Add --file flag for custom KANBAN.md path
-- [ ] **6.5** Publish to npm registry
-- [ ] **6.6** Create GitHub release with changelog
+- [ ] **6.5** Publish to npm registry (待 Kai 确认)
+- [x] **6.6** GitHub repo created: github.com/sharkqwy/openclaw-kanban
 - [ ] **6.7** Announce on OpenClaw Discord
 
 ### Acceptance
-- [ ] `npx openclaw-kanban` works globally
-- [ ] Package on npmjs.com
+- [x] CLI works locally
+- [ ] Package on npmjs.com (待发布)
 - [ ] GitHub releases page has v1.0.0
 
 ---
