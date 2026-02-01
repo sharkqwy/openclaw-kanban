@@ -10,10 +10,10 @@ const SAMPLE_CARDS: Card[] = [
   { id: '2', title: 'Update documentation for new features', status: 'inbox', tags: ['docs'] },
   { id: '3', title: 'Fix auth token refresh issue', status: 'today', tags: ['bug'], priority: 'high' },
   { id: '4', title: 'Design new dashboard layout', status: 'today', tags: ['design'] },
-  { id: '5', title: 'Implement drag-and-drop', status: 'in-progress', tags: ['feature'], subtasks: { total: 5, completed: 3 } },
+  { id: '5', title: 'Implement drag-and-drop', status: 'in-progress', tags: ['feature'], subtasks: { total: 5, completed: 3 }, startedAt: Date.now() - 3600000 },
   { id: '6', title: 'Set up CI/CD pipeline', status: 'in-progress', tags: ['devops'] },
-  { id: '7', title: 'Initialize project repository', status: 'done', tags: ['setup'] },
-  { id: '8', title: 'Create component architecture', status: 'done', tags: ['architecture'] },
+  { id: '7', title: 'Initialize project repository', status: 'done', tags: ['setup'], completedAt: Date.now() - 86400000 },
+  { id: '8', title: 'Create component architecture', status: 'done', tags: ['architecture'], completedAt: Date.now() - 43200000 },
 ]
 
 function createColumns(cards: Card[]): Column[] {
@@ -58,6 +58,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   lastSaved: null,
   
   moveCard: (cardId, fromColumn, toColumn, toIndex) => {
+    const now = Date.now()
+    
     set((state) => {
       const newColumns = state.columns.map(col => ({ ...col, cards: [...col.cards] }))
       
@@ -71,6 +73,18 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       
       const [card] = fromCol.cards.splice(cardIndex, 1)
       card.status = toColumn
+      card.updatedAt = now
+      
+      // Track timestamps based on destination column
+      if (toColumn === 'in-progress' && !card.startedAt) {
+        card.startedAt = now
+      } else if (toColumn === 'done' && !card.completedAt) {
+        card.completedAt = now
+        // Calculate time spent if we have startedAt
+        if (card.startedAt) {
+          card.timeSpent = (card.timeSpent || 0) + (now - card.startedAt)
+        }
+      }
       
       if (toIndex !== undefined) {
         toCol.cards.splice(toIndex, 0, card)
@@ -94,6 +108,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       if (!column) return state
       
       const [card] = column.cards.splice(fromIndex, 1)
+      card.updatedAt = Date.now()
       column.cards.splice(toIndex, 0, card)
       
       return { columns: newColumns }
@@ -105,10 +120,17 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
   
   addCard: (card) => {
+    const now = Date.now()
+    const newCard = {
+      ...card,
+      createdAt: card.createdAt || now,
+      updatedAt: now,
+    }
+    
     set((state) => {
       const newColumns = state.columns.map(col => {
         if (col.id === card.status) {
-          return { ...col, cards: [...col.cards, card] }
+          return { ...col, cards: [...col.cards, newCard] }
         }
         return col
       })
@@ -125,7 +147,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       const newColumns = state.columns.map(col => ({
         ...col,
         cards: col.cards.map(card => 
-          card.id === cardId ? { ...card, ...updates } : card
+          card.id === cardId ? { ...card, ...updates, updatedAt: Date.now() } : card
         ),
       }))
       return { columns: newColumns }

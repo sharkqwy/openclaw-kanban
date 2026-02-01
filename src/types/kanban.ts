@@ -7,6 +7,15 @@ export interface Card {
   tags?: string[]
   priority?: 'low' | 'medium' | 'high'
   subtasks?: { total: number; completed: number }
+  
+  // Monitoring fields
+  description?: string       // Multi-line notes/details
+  session?: string          // Which session is working on this
+  createdAt?: number        // Unix timestamp
+  updatedAt?: number        // Last update timestamp
+  completedAt?: number      // When moved to done
+  startedAt?: number        // When moved to in-progress
+  timeSpent?: number        // Total time in ms
 }
 
 export interface Column {

@@ -260,6 +260,81 @@ body::after {
   50% { box-shadow: 0 0 8px 2px rgba(255, 77, 77, 0.2); }
 }
 
+/* Session badge */
+.kanban-session-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.2);
+  color: var(--color-purple);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.kanban-card--has-session .kanban-card__title {
+  padding-left: 0;
+  margin-top: 20px;
+}
+
+/* Card description preview */
+.kanban-card__description {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-bottom: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+/* Card meta/time tracking */
+.kanban-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.kanban-card__time {
+  color: var(--color-cyan);
+}
+
+.kanban-card__started {
+  color: var(--color-cyan-mid);
+}
+
+.kanban-card__completed {
+  color: var(--color-green);
+}
+
+/* Project and building tags */
+.kanban-tag--project {
+  background: rgba(255, 77, 77, 0.15);
+  color: var(--color-coral);
+  border: 1px solid rgba(255, 77, 77, 0.2);
+}
+
+.kanban-tag--building {
+  background: rgba(0, 229, 204, 0.2);
+  color: var(--color-cyan);
+  border: 1px solid rgba(0, 229, 204, 0.3);
+  animation: building-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes building-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 /* =============================================
    Column Styles
    ============================================= */
