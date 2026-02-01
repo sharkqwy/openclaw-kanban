@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* OpenClaw Design System */
+@theme {
+  /* Backgrounds */
+  --color-bg-deep: #050810;
+  --color-bg-surface: #0a0f1a;
+  --color-bg-elevated: #111827;
+  
+  /* Accents */
+  --color-coral: #ff4d4d;
+  --color-coral-mid: #e63946;
+  --color-coral-dark: #991b1b;
+  --color-cyan: #00e5cc;
+  --color-cyan-mid: #14b8a6;
+  --color-green: #22c55e;
+  --color-purple: #a855f7;
+  
+  /* Text */
+  --color-text-primary: #f0f4ff;
+  --color-text-secondary: #8892b0;
+  --color-text-muted: #5a6480;
+  
+  /* Borders */
+  --color-border-subtle: rgba(136, 146, 176, 0.15);
+  
+  /* Typography */
+  --font-display: 'Clash Display', system-ui, sans-serif;
+  --font-body: 'Satoshi', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', monospace;
+}
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-deep);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
