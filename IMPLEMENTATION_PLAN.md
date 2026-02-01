@@ -1,6 +1,6 @@
 # Implementation Plan - OpenClaw Kanban
 
-> STATUS: BUILDING
+> STATUS: COMPLETE (pending npm publish)
 > Last updated: 2026-02-01
 > Target: Public GitHub repo at `github.com/openclaw/openclaw-kanban`
 > Reference: [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban)
