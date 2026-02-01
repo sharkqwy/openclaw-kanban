@@ -5,6 +5,13 @@
   "type": "module",
   "license": "MIT",
   "author": "OpenClaw",
+  "bin": {
+    "openclaw-kanban": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openclaw/openclaw-kanban.git"
@@ -22,6 +29,8 @@
   ],
   "scripts": {
     "dev": "vite",
+    "dev:full": "node server.js & vite",
+    "server": "node server.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -33,7 +42,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "zustand": "^5.0.0"
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

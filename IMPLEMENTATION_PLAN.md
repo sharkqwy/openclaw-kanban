@@ -47,64 +47,64 @@
 
 ---
 
-## Phase 2: Drag and Drop
+## Phase 2: Drag and Drop ✅
 **Goal:** Enable card movement between columns
 
 ### Tasks
-- [ ] **2.1** Install @dnd-kit/core and @dnd-kit/sortable
-- [ ] **2.2** Create Zustand store for board state
-- [ ] **2.3** Implement DndContext wrapper in Board
-- [ ] **2.4** Make cards draggable (useDraggable)
-- [ ] **2.5** Make columns droppable (useDroppable)
-- [ ] **2.6** Handle onDragEnd to update state
-- [ ] **2.7** Add drag overlay (ghost card)
-- [ ] **2.8** Add keyboard navigation (a11y)
+- [x] **2.1** Install @dnd-kit/core and @dnd-kit/sortable
+- [x] **2.2** Create Zustand store for board state
+- [x] **2.3** Implement DndContext wrapper in Board
+- [x] **2.4** Make cards draggable (useSortable in SortableCard)
+- [x] **2.5** Make columns droppable (useDroppable)
+- [x] **2.6** Handle onDragEnd to update state
+- [x] **2.7** Add drag overlay (ghost card)
+- [x] **2.8** Add keyboard navigation (a11y)
 
 ### Acceptance
-- [ ] Can drag card from Inbox to Today
-- [ ] Can reorder cards within column
-- [ ] Visual feedback during drag
+- [x] Can drag card from Inbox to Today
+- [x] Can reorder cards within column
+- [x] Visual feedback during drag
 
 ---
 
-## Phase 3: KANBAN.md Sync
+## Phase 3: KANBAN.md Sync ✅
 **Goal:** Two-way sync with markdown file
 
 ### Tasks
-- [ ] **3.1** Create markdown parser (`lib/markdown.ts`)
+- [x] **3.1** Create markdown parser (`lib/markdown.ts`)
   - Parse headings as columns
   - Parse list items as cards
-  - Handle checkbox syntax
-- [ ] **3.2** Create markdown serializer
+  - Handle checkbox syntax, tags, priority
+- [x] **3.2** Create markdown serializer
   - Convert board state to markdown
   - Preserve formatting
-- [ ] **3.3** Add file read/write via fetch (localhost server)
-- [ ] **3.4** Connect store to file operations
-- [ ] **3.5** Add debounced save (500ms)
-- [ ] **3.6** Add sync status indicator
-- [ ] **3.7** Handle file not found (create default)
+- [x] **3.3** Add file read/write via fetch (localhost server)
+- [x] **3.4** Connect store to file operations
+- [x] **3.5** Add debounced save (500ms)
+- [x] **3.6** Add sync status indicator (SyncIndicator component)
+- [x] **3.7** Handle file not found (create default)
 
 ### Acceptance
-- [ ] Load KANBAN.md on startup
-- [ ] Changes persist to file
-- [ ] Sync indicator shows status
+- [x] Load KANBAN.md on startup
+- [x] Changes persist to file (via server or File System Access API)
+- [x] Sync indicator shows status
 
 ---
 
-## Phase 4: Gateway Integration
+## Phase 4: Gateway Integration ✅
 **Goal:** Show OpenClaw session activity
 
 ### Tasks
-- [ ] **4.1** Create Gateway client (`lib/gateway.ts`)
-- [ ] **4.2** Add WebSocket connection logic
-- [ ] **4.3** Create Sidebar component
-- [ ] **4.4** Display active sessions list
-- [ ] **4.5** Add connection status indicator
-- [ ] **4.6** Show activity feed (optional)
+- [x] **4.1** Create Gateway client (`lib/gateway.ts`)
+- [x] **4.2** Add WebSocket connection logic
+- [x] **4.3** Create Sidebar component
+- [x] **4.4** Display active sessions list
+- [x] **4.5** Add connection status indicator
+- [ ] **4.6** Show activity feed (optional - stretch)
 
 ### Acceptance
-- [ ] Sidebar shows active OpenClaw sessions
-- [ ] Connection status visible
+- [x] Sidebar shows active OpenClaw sessions
+- [x] Connection status visible
 
 ---
 
@@ -128,10 +128,10 @@
 **Goal:** Publish to npm for easy installation
 
 ### Tasks
-- [ ] **6.1** Create CLI wrapper (`bin/cli.js`)
-- [ ] **6.2** Configure Vite for library build
+- [x] **6.1** Create CLI wrapper (`bin/cli.js`)
+- [x] **6.2** Configure Vite for library build
 - [ ] **6.3** Test `npx openclaw-kanban` locally
-- [ ] **6.4** Add --file flag for custom KANBAN.md path
+- [x] **6.4** Add --file flag for custom KANBAN.md path
 - [ ] **6.5** Publish to npm registry
 - [ ] **6.6** Create GitHub release with changelog
 - [ ] **6.7** Announce on OpenClaw Discord

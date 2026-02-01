@@ -36,6 +36,7 @@ export function Card({ card, isDragging }: CardProps) {
       tabIndex={0}
       role="button"
       aria-label={`Task: ${card.title}${card.priority === 'high' ? ' - High priority' : ''}`}
+      aria-grabbed={isDragging}
     >
       {/* Priority indicator for high priority */}
       {card.priority === 'high' && (

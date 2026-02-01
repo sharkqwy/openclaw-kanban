@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import type { Card, CardStatus, Column } from '@/types'
 import { COLUMN_CONFIG } from '@/types'
+import { parseKanban, serializeKanban, createColumnsFromCards, DEFAULT_KANBAN } from '@/lib/markdown'
+import { readFile, writeFile } from '@/lib/file-sync'
 
-// Sample data for initial development
+// Sample data for initial development / fallback
 const SAMPLE_CARDS: Card[] = [
   { id: '1', title: 'Review PR #42 - API refactor', status: 'inbox', tags: ['code-review'], priority: 'high' },
   { id: '2', title: 'Update documentation for new features', status: 'inbox', tags: ['docs'] },
@@ -24,8 +26,13 @@ function createColumns(cards: Card[]): Column[] {
   }))
 }
 
+export type SyncStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error'
+
 interface BoardStore {
   columns: Column[]
+  syncStatus: SyncStatus
+  syncError: string | null
+  lastSaved: Date | null
   
   // Actions
   moveCard: (cardId: string, fromColumn: CardStatus, toColumn: CardStatus, toIndex?: number) => void
@@ -33,10 +40,22 @@ interface BoardStore {
   addCard: (card: Card) => void
   updateCard: (cardId: string, updates: Partial<Card>) => void
   deleteCard: (cardId: string) => void
+  
+  // Sync actions
+  loadFromFile: () => Promise<void>
+  saveToFile: () => Promise<void>
+  setColumns: (columns: Column[]) => void
 }
 
-export const useBoardStore = create<BoardStore>((set) => ({
+// Debounce timer for auto-save
+let saveTimeout: ReturnType<typeof setTimeout> | null = null
+const SAVE_DELAY = 500 // ms
+
+export const useBoardStore = create<BoardStore>((set, get) => ({
   columns: createColumns(SAMPLE_CARDS),
+  syncStatus: 'idle',
+  syncError: null,
+  lastSaved: null,
   
   moveCard: (cardId, fromColumn, toColumn, toIndex) => {
     set((state) => {
@@ -61,6 +80,10 @@ export const useBoardStore = create<BoardStore>((set) => ({
       
       return { columns: newColumns }
     })
+    
+    // Debounced auto-save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => get().saveToFile(), SAVE_DELAY)
   },
   
   reorderCard: (columnId, fromIndex, toIndex) => {
@@ -75,6 +98,10 @@ export const useBoardStore = create<BoardStore>((set) => ({
       
       return { columns: newColumns }
     })
+    
+    // Debounced auto-save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => get().saveToFile(), SAVE_DELAY)
   },
   
   addCard: (card) => {
@@ -87,6 +114,10 @@ export const useBoardStore = create<BoardStore>((set) => ({
       })
       return { columns: newColumns }
     })
+    
+    // Debounced auto-save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => get().saveToFile(), SAVE_DELAY)
   },
   
   updateCard: (cardId, updates) => {
@@ -99,6 +130,10 @@ export const useBoardStore = create<BoardStore>((set) => ({
       }))
       return { columns: newColumns }
     })
+    
+    // Debounced auto-save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => get().saveToFile(), SAVE_DELAY)
   },
   
   deleteCard: (cardId) => {
@@ -109,5 +144,49 @@ export const useBoardStore = create<BoardStore>((set) => ({
       }))
       return { columns: newColumns }
     })
+    
+    // Debounced auto-save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => get().saveToFile(), SAVE_DELAY)
+  },
+  
+  loadFromFile: async () => {
+    set({ syncStatus: 'loading', syncError: null })
+    
+    const result = await readFile()
+    
+    if (result.success && result.content) {
+      const cards = parseKanban(result.content)
+      const columns = createColumnsFromCards(cards)
+      set({ columns, syncStatus: 'idle' })
+    } else if (result.error === 'File not found') {
+      // Use default content
+      const cards = parseKanban(DEFAULT_KANBAN)
+      const columns = createColumnsFromCards(cards)
+      set({ columns, syncStatus: 'idle' })
+    } else {
+      // Keep sample data, show error
+      set({ syncStatus: 'error', syncError: result.error || 'Failed to load' })
+    }
+  },
+  
+  saveToFile: async () => {
+    const { columns } = get()
+    set({ syncStatus: 'saving' })
+    
+    const content = serializeKanban(columns)
+    const result = await writeFile(content)
+    
+    if (result.success) {
+      set({ syncStatus: 'saved', lastSaved: new Date() })
+      // Reset to idle after showing "saved"
+      setTimeout(() => set({ syncStatus: 'idle' }), 1500)
+    } else {
+      set({ syncStatus: 'error', syncError: result.error || 'Failed to save' })
+    }
+  },
+  
+  setColumns: (columns) => {
+    set({ columns })
   },
 }))
