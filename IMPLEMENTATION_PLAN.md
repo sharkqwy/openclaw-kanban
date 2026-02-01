@@ -1,16 +1,16 @@
 # Implementation Plan - OpenClaw Kanban
 
-> STATUS: PLANNING
+> STATUS: BUILDING
 > Last updated: 2026-02-01
 > Target: Public GitHub repo at `github.com/openclaw/openclaw-kanban`
 > Reference: [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban)
 
-## Phase 0: Repository Setup
+## Phase 0: Repository Setup ✅
 **Goal:** Initialize repo structure for public release
 
 ### Tasks
-- [ ] **0.1** Initialize git repo with proper .gitignore
-- [ ] **0.2** Create package.json with correct metadata
+- [x] **0.1** Initialize git repo with proper .gitignore
+- [x] **0.2** Create package.json with correct metadata
   - name: `openclaw-kanban`
   - bin entry for CLI
   - repository, homepage, bugs URLs
@@ -24,26 +24,26 @@
 
 ---
 
-## Phase 1: Project Setup & Static Board (MVP)
+## Phase 1: Project Setup & Static Board (MVP) ✅
 **Goal:** Render a static kanban board with hardcoded data
 
 ### Tasks
-- [ ] **1.1** Initialize Vite + React + TypeScript project
-  - `pnpm create vite openclaw-kanban --template react-ts`
-  - Add Tailwind CSS
-  - Configure path aliases
-- [ ] **1.2** Set up design tokens (CSS variables from specs/04-ui-design.md)
-- [ ] **1.3** Add Fontshare fonts (Clash Display, Satoshi)
-- [ ] **1.4** Create basic components:
-  - [ ] `Board.tsx` - Grid container for columns
-  - [ ] `Column.tsx` - Single column with header
-  - [ ] `Card.tsx` - Task card component
-- [ ] **1.5** Render hardcoded board data
-- [ ] **1.6** Add responsive styles (mobile single-column)
+- [x] **1.1** Initialize Vite + React + TypeScript project
+  - `npm create vite . --template react-ts`
+  - Add Tailwind CSS 4
+  - Configure path aliases (@/)
+- [x] **1.2** Set up design tokens (CSS variables from specs/04-ui-design.md)
+- [x] **1.3** Add Fontshare fonts (Clash Display, Satoshi)
+- [x] **1.4** Create basic components:
+  - [x] `Board.tsx` - Grid container for columns
+  - [x] `Column.tsx` - Single column with header
+  - [x] `Card.tsx` - Task card component
+- [x] **1.5** Render hardcoded board data (8 sample cards)
+- [x] **1.6** Add responsive styles (mobile single-column)
 
 ### Acceptance
-- [ ] `pnpm dev` shows 4-column kanban board
-- [ ] Matches openclaw.ai visual style
+- [x] `npm run dev` shows 4-column kanban board
+- [x] Matches openclaw.ai visual style (dark theme, coral/cyan accents)
 
 ---
 
