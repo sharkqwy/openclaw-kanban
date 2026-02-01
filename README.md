@@ -37,6 +37,53 @@ pnpm install
 pnpm dev
 ```
 
+## 🤖 CLI Commands (for Humans & Agents)
+
+OpenClaw Kanban provides CLI commands for managing tasks without the UI - perfect for automation and AI agents:
+
+```bash
+# List all tasks with IDs
+openclaw-kanban list
+
+# Add a task to Inbox
+openclaw-kanban add "Review PR #123"
+
+# Add a task directly to Today
+openclaw-kanban add "Fix critical bug" --to today
+
+# Start working on a task (moves to In Progress)
+openclaw-kanban start 3
+
+# Mark a task as done
+openclaw-kanban done 3
+
+# Move a task to a specific column
+openclaw-kanban move 2 today
+openclaw-kanban move 5 progress
+```
+
+### Column Names
+- `inbox` - New tasks, ideas
+- `today` - Tasks to do today
+- `progress` / `inprogress` - Currently working on
+- `done` - Completed tasks
+
+### Agent Integration
+
+OpenClaw agents can manage their own kanban:
+
+1. **Direct file editing** - Agents can read/write `KANBAN.md` directly
+2. **CLI commands** - Use the commands above for structured operations
+3. **Web UI** - Visual management at `http://localhost:5173`
+
+The markdown format is simple and agent-friendly:
+```markdown
+# Today
+- [ ] Pending task
+- [~] In-progress task
+- [x] Completed task
+```
+
 ## 📖 How It Works
 
 OpenClaw Kanban reads and writes to your `KANBAN.md` file:
@@ -73,6 +120,43 @@ Connect to your running OpenClaw Gateway to:
 # Make sure OpenClaw Gateway is running
 openclaw gateway status
 ```
+
+## 🤖 For OpenClaw Agents
+
+OpenClaw agents should use the kanban to track work:
+
+### Workflow
+1. **Receive task** → Add to Inbox or Today
+2. **Start work** → Move to In Progress
+3. **Complete** → Move to Done with timestamp
+
+### In AGENTS.md
+```markdown
+## Kanban
+Track all tasks in KANBAN.md:
+- `openclaw-kanban list` - see current state
+- `openclaw-kanban add "task"` - add new task
+- `openclaw-kanban done <id>` - mark complete
+```
+
+### Direct File Format
+```markdown
+# In Progress
+
+- [~] Current task !high #project
+  - Started: 2026-02-01 19:52
+
+# Done
+
+- [x] Completed task #project
+  - Completed: 2026-02-01 18:30
+```
+
+### Task Metadata
+- `!high` / `!low` - Priority
+- `#tag` - Categories
+- `@session` - Link to session
+- Subtasks with indented `-` lines
 
 ## 🎨 Design
 
