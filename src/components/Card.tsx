@@ -5,54 +5,57 @@ interface CardProps {
   isDragging?: boolean
 }
 
-const priorityColors = {
-  high: 'bg-coral/20 text-coral',
-  medium: 'bg-cyan/20 text-cyan',
-  low: 'bg-text-secondary/20 text-text-secondary',
-}
-
-const tagColors: Record<string, string> = {
-  'bug': 'bg-coral-dark/30 text-coral',
-  'feature': 'bg-cyan/20 text-cyan',
-  'docs': 'bg-purple/20 text-purple',
-  'design': 'bg-purple/20 text-purple',
-  'code-review': 'bg-cyan-mid/20 text-cyan-mid',
-  'devops': 'bg-green/20 text-green',
-  'setup': 'bg-text-muted/30 text-text-secondary',
-  'architecture': 'bg-cyan/20 text-cyan',
+const tagClassMap: Record<string, string> = {
+  'bug': 'kanban-tag--bug',
+  'feature': 'kanban-tag--feature',
+  'docs': 'kanban-tag--docs',
+  'design': 'kanban-tag--design',
+  'code-review': 'kanban-tag--feature',
+  'devops': 'kanban-tag--devops',
+  'setup': 'kanban-tag--default',
+  'architecture': 'kanban-tag--feature',
 }
 
 export function Card({ card, isDragging }: CardProps) {
-  const borderColor = card.priority === 'high' ? 'border-l-coral' 
-    : card.priority === 'medium' ? 'border-l-cyan'
-    : 'border-l-text-muted'
+  const priorityClass = card.priority === 'high' 
+    ? 'kanban-card--high-priority' 
+    : card.priority === 'medium' 
+      ? 'kanban-card--medium-priority'
+      : 'kanban-card--low-priority'
+
+  const progress = card.subtasks 
+    ? Math.round((card.subtasks.completed / card.subtasks.total) * 100) 
+    : 0
 
   return (
     <div
       className={`
-        group relative
-        bg-bg-elevated rounded-lg border-l-3 ${borderColor}
-        p-3 cursor-grab active:cursor-grabbing
-        transition-all duration-200 ease-out
-        hover:-translate-y-0.5 hover:shadow-lg hover:shadow-bg-deep/50
-        ${isDragging ? 'opacity-50 scale-105 shadow-xl rotate-2' : ''}
+        kanban-card ${priorityClass}
+        ${isDragging ? 'kanban-card--dragging' : ''}
       `}
+      tabIndex={0}
+      role="button"
+      aria-label={`Task: ${card.title}${card.priority === 'high' ? ' - High priority' : ''}`}
     >
+      {/* Priority indicator for high priority */}
+      {card.priority === 'high' && (
+        <span className="kanban-priority-badge kanban-priority-badge--high absolute top-2.5 right-2.5">
+          urgent
+        </span>
+      )}
+
       {/* Title */}
-      <h4 className="text-sm font-medium text-text-primary leading-snug mb-2">
+      <h4 className="kanban-card__title pr-14">
         {card.title}
       </h4>
 
       {/* Tags */}
       {card.tags && card.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {card.tags.map(tag => (
             <span
               key={tag}
-              className={`
-                text-[10px] px-1.5 py-0.5 rounded
-                ${tagColors[tag] || 'bg-text-muted/30 text-text-secondary'}
-              `}
+              className={`kanban-tag ${tagClassMap[tag] || 'kanban-tag--default'}`}
             >
               {tag}
             </span>
@@ -62,27 +65,21 @@ export function Card({ card, isDragging }: CardProps) {
 
       {/* Subtasks progress */}
       {card.subtasks && (
-        <div className="flex items-center gap-2 text-xs text-text-secondary">
-          <div className="flex-1 h-1 bg-bg-surface rounded-full overflow-hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="kanban-progress flex-1">
             <div 
-              className="h-full bg-cyan transition-all duration-300"
-              style={{ width: `${(card.subtasks.completed / card.subtasks.total) * 100}%` }}
+              className="kanban-progress__bar"
+              style={{ width: `${progress}%` }}
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
             />
           </div>
-          <span className="text-[10px]">
+          <span className="text-[10px] font-medium text-text-secondary tabular-nums">
             {card.subtasks.completed}/{card.subtasks.total}
           </span>
         </div>
-      )}
-
-      {/* Priority indicator */}
-      {card.priority && (
-        <span className={`
-          absolute top-2 right-2 text-[9px] px-1.5 py-0.5 rounded font-medium uppercase
-          ${priorityColors[card.priority]}
-        `}>
-          {card.priority === 'high' ? '!' : card.priority === 'medium' ? '!!' : ''}
-        </span>
       )}
     </div>
   )
