@@ -31,7 +31,7 @@ openclaw-kanban
 
 ### Option 3: From Source
 ```bash
-git clone https://github.com/openclaw/openclaw-kanban
+git clone https://github.com/sharkqwy/openclaw-kanban
 cd openclaw-kanban
 pnpm install
 pnpm dev

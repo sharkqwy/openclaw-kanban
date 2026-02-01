@@ -14,11 +14,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/openclaw/openclaw-kanban.git"
+    "url": "git+https://github.com/sharkqwy/openclaw-kanban.git"
   },
-  "homepage": "https://github.com/openclaw/openclaw-kanban#readme",
+  "homepage": "https://github.com/sharkqwy/openclaw-kanban#readme",
   "bugs": {
-    "url": "https://github.com/openclaw/openclaw-kanban/issues"
+    "url": "https://github.com/sharkqwy/openclaw-kanban/issues"
   },
   "keywords": [
     "openclaw",
