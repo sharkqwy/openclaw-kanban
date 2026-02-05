@@ -1,39 +1,22 @@
 import { useState, useEffect } from 'react'
-import { gateway, type GatewayState, type GatewaySession } from '@/lib/gateway'
+import { AgentPanel } from './AgentPanel'
+import { openclawAPI } from '@/lib/openclaw-api'
 
 export function Sidebar() {
-  const [state, setState] = useState<GatewayState>(() => gateway.getState())
+  const [connected, setConnected] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   
   useEffect(() => {
-    // Subscribe to gateway state
-    const unsubscribe = gateway.subscribe(setState)
-    
-    // Connect to gateway
-    gateway.connect()
-    
-    return () => {
-      unsubscribe()
+    // Check gateway connection
+    const checkConnection = async () => {
+      const status = await openclawAPI.getStatus()
+      setConnected(status.connected)
     }
+    
+    checkConnection()
+    const interval = setInterval(checkConnection, 30000)
+    return () => clearInterval(interval)
   }, [])
-  
-  const formatRelativeTime = (ms?: number) => {
-    if (!ms) return 'Unknown'
-    const seconds = Math.floor((Date.now() - ms) / 1000)
-    if (seconds < 60) return 'Just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-    return `${Math.floor(seconds / 86400)}d ago`
-  }
-  
-  const getKindEmoji = (kind: string) => {
-    switch (kind) {
-      case 'main': return '🏠'
-      case 'spawned': return '🚀'
-      case 'cron': return '⏰'
-      default: return '📋'
-    }
-  }
   
   if (isCollapsed) {
     return (
@@ -66,59 +49,44 @@ export function Sidebar() {
       </div>
       
       {/* Connection status */}
-      <div className={`sidebar__status ${state.connected ? 'sidebar__status--connected' : 'sidebar__status--disconnected'}`}>
+      <div className={`sidebar__status ${connected ? 'sidebar__status--connected' : 'sidebar__status--disconnected'}`}>
         <span className="sidebar__status-dot" />
-        {state.connected ? 'Connected' : 'Disconnected'}
+        {connected ? 'Gateway Connected' : 'Gateway Disconnected'}
       </div>
       
-      {state.error && (
-        <div className="sidebar__error">
-          {state.error}
-        </div>
-      )}
-      
-      {/* Sessions list */}
+      {/* Quick Stats */}
       <div className="sidebar__section">
-        <h3 className="sidebar__section-title">Active Sessions</h3>
-        
-        {state.sessions.length === 0 ? (
-          <p className="sidebar__empty">
-            {state.connected ? 'No active sessions' : 'Connect to see sessions'}
-          </p>
-        ) : (
-          <ul className="sidebar__sessions">
-            {state.sessions.map((session) => (
-              <SessionItem key={session.key} session={session} formatTime={formatRelativeTime} getEmoji={getKindEmoji} />
-            ))}
-          </ul>
-        )}
+        <h3 className="sidebar__section-title">📊 Quick Stats</h3>
+        <div className="sidebar__stats">
+          <QuickStat label="Today" value="—" />
+          <QuickStat label="In Progress" value="—" />
+          <QuickStat label="Done (7d)" value="—" />
+        </div>
+      </div>
+      
+      {/* Agent Panel - for task assignment */}
+      <AgentPanel />
+      
+      {/* Keyboard shortcuts hint */}
+      <div className="sidebar__footer">
+        <p className="sidebar__shortcut">
+          <kbd>?</kbd> Keyboard shortcuts
+        </p>
       </div>
     </aside>
   )
 }
 
-interface SessionItemProps {
-  session: GatewaySession
-  formatTime: (ms?: number) => string
-  getEmoji: (kind: string) => string
+interface QuickStatProps {
+  label: string
+  value: string | number
 }
 
-function SessionItem({ session, formatTime, getEmoji }: SessionItemProps) {
+function QuickStat({ label, value }: QuickStatProps) {
   return (
-    <li className="sidebar__session">
-      <div className="sidebar__session-header">
-        <span className="sidebar__session-emoji">{getEmoji(session.kind)}</span>
-        <span className="sidebar__session-key">{session.key}</span>
-      </div>
-      <div className="sidebar__session-meta">
-        {session.model && (
-          <span className="sidebar__session-model">{session.model}</span>
-        )}
-        {session.channel && (
-          <span className="sidebar__session-channel">{session.channel}</span>
-        )}
-        <span className="sidebar__session-time">{formatTime(session.lastActivity)}</span>
-      </div>
-    </li>
+    <div className="quick-stat">
+      <span className="quick-stat__value">{value}</span>
+      <span className="quick-stat__label">{label}</span>
+    </div>
   )
 }

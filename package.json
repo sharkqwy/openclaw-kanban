@@ -1,12 +1,12 @@
 {
   "name": "openclaw-kanban",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual kanban board for OpenClaw - drag-and-drop task management with KANBAN.md sync",
   "type": "module",
   "license": "MIT",
   "author": "OpenClaw",
   "bin": {
-    "openclaw-kanban": "./bin/cli.js"
+    "openclaw-kanban": "bin/cli.js"
   },
   "files": [
     "bin",
