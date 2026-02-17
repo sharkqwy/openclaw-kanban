@@ -8,7 +8,7 @@ interface CreateTaskModalProps {
   onClose: () => void;
 }
 
-const STATUSES: TaskStatus[] = ['planning', 'inbox', 'assigned', 'in_progress', 'testing', 'review', 'done'];
+const STATUSES: TaskStatus[] = ['planning', 'inbox', 'active', 'review', 'done'];
 const PRIORITIES: TaskPriority[] = ['low', 'normal', 'high', 'urgent'];
 
 export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
@@ -21,6 +21,9 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
     status: 'inbox' as TaskStatus,
     assigned_agent_id: '',
     due_date: '',
+    is_epic: false,
+    definition_of_done: '',
+    tags: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,6 +31,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
     if (!form.title.trim()) return;
     setSaving(true);
     try {
+      const tagsArray = form.tags.trim() ? JSON.stringify(form.tags.split(',').map(t => t.trim()).filter(Boolean)) : null;
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,6 +39,9 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
           ...form,
           assigned_agent_id: form.assigned_agent_id || null,
           due_date: form.due_date || null,
+          is_epic: form.is_epic ? 1 : 0,
+          definition_of_done: form.definition_of_done || null,
+          tags: tagsArray,
         }),
       });
       if (res.ok) {
@@ -97,7 +104,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                 className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
               >
                 {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
+                  <option key={s} value={s}>{s.toUpperCase()}</option>
                 ))}
               </select>
             </div>
@@ -115,27 +122,61 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] uppercase text-text-secondary mb-1 block">Assign to</label>
-            <select
-              value={form.assigned_agent_id}
-              onChange={(e) => setForm({ ...form, assigned_agent_id: e.target.value })}
-              className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
-            >
-              <option value="">Unassigned</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.avatar_emoji} {a.name} — {a.role}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] uppercase text-text-secondary mb-1 block">Assign to</label>
+              <select
+                value={form.assigned_agent_id}
+                onChange={(e) => setForm({ ...form, assigned_agent_id: e.target.value })}
+                className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.avatar_emoji} {a.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-text-secondary mb-1 block">Due Date</label>
+              <input
+                type="datetime-local"
+                value={form.due_date}
+                onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] uppercase text-text-secondary mb-1 block">Tags (comma-separated)</label>
+              <input
+                value={form.tags}
+                onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                placeholder="seo, a1d"
+              />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.is_epic}
+                  onChange={(e) => setForm({ ...form, is_epic: e.target.checked })}
+                  className="rounded border-border-subtle"
+                />
+                <span className="text-xs text-text-secondary">EPIC (parent task)</span>
+              </label>
+            </div>
           </div>
 
           <div>
-            <label className="text-[10px] uppercase text-text-secondary mb-1 block">Due Date</label>
+            <label className="text-[10px] uppercase text-text-secondary mb-1 block">Definition of Done</label>
             <input
-              type="datetime-local"
-              value={form.due_date}
-              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+              value={form.definition_of_done}
+              onChange={(e) => setForm({ ...form, definition_of_done: e.target.value })}
               className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+              placeholder="What marks this task as complete?"
             />
           </div>
         </form>

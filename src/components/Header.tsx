@@ -16,9 +16,9 @@ export function Header() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
-              MC
+              N
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">Mission Control</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Nexus</h1>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-text-secondary">
             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-accent animate-pulse' : 'bg-red-500'}`} />

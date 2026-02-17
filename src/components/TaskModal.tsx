@@ -14,7 +14,7 @@ interface TaskModalProps {
   onClose: () => void;
 }
 
-const STATUSES: TaskStatus[] = ['planning', 'inbox', 'assigned', 'in_progress', 'testing', 'review', 'done'];
+const STATUSES: TaskStatus[] = ['planning', 'inbox', 'active', 'review', 'done'];
 const PRIORITIES: TaskPriority[] = ['low', 'normal', 'high', 'urgent'];
 
 export function TaskModal({ task, onClose }: TaskModalProps) {
@@ -46,8 +46,8 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
         const updated = await res.json();
         updateTask(updated);
 
-        // Auto-dispatch if moved to in_progress
-        if (task.status !== 'in_progress' && updated.status === 'in_progress' && updated.assigned_agent_id) {
+        // Auto-dispatch if moved to active
+        if (task.status !== 'active' && updated.status === 'active' && updated.assigned_agent_id) {
           fetch(`/api/tasks/${task.id}/dispatch`, { method: 'POST' }).catch(console.error);
         }
         onClose();

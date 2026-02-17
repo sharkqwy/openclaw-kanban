@@ -11,3 +11,4 @@ export { Header } from './Header';
 export { ActivityLog } from './ActivityLog';
 export { DeliverablesList } from './DeliverablesList';
 export { SessionsList } from './SessionsList';
+export { QuickAdd } from './QuickAdd';
