@@ -21,7 +21,7 @@ import { TaskCard } from './TaskCard';
 export function Board() {
   const { tasks, updateTaskStatus, isLoading } = useMissionStore();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [dragOverAgent, setDragOverAgent] = useState<string | null>(null);
+  const [, setDragOverAgent] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
