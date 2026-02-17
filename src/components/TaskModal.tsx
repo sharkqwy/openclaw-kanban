@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Save, Trash2, Activity, Package, Bot } from 'lucide-react';
+import { X, Save, Trash2, Activity, Package, Bot, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMissionStore } from '@/store';
 import type { Task, TaskPriority, TaskStatus } from '@/shared/types';
@@ -29,6 +29,8 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
     assigned_agent_id: task.assigned_agent_id || '',
     due_date: task.due_date || '',
   });
+  const [feedbackText, setFeedbackText] = useState('');
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -64,6 +66,24 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
     await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
     useMissionStore.setState((s) => ({ tasks: s.tasks.filter((t) => t.id !== task.id) }));
     onClose();
+  };
+
+  const handleRequestChanges = async () => {
+    if (!feedbackText.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active', review_feedback: feedbackText }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        updateTask(updated);
+        // Re-dispatch with feedback
+        fetch(`/api/tasks/${task.id}/dispatch`, { method: 'POST' }).catch(console.error);
+        onClose();
+      }
+    } catch (err) { console.error(err); }
   };
 
   const tabs = [
@@ -168,6 +188,52 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
                   className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
                 />
               </div>
+
+              {/* Review feedback / Request Changes */}
+              {task.status === 'review' && (
+                <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-xs font-medium text-amber-400">Request Changes</span>
+                  </div>
+                  {showFeedback ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        rows={3}
+                        placeholder="What needs to change?"
+                        className="w-full bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-400 resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleRequestChanges}
+                          disabled={!feedbackText.trim()}
+                          className="px-3 py-1.5 bg-amber-500 text-bg-deep rounded text-xs font-medium hover:bg-amber-400 disabled:opacity-50"
+                        >
+                          Send Back to Active
+                        </button>
+                        <button onClick={() => setShowFeedback(false)} className="px-3 py-1.5 text-xs text-text-secondary">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowFeedback(true)}
+                      className="text-xs text-amber-400 hover:text-amber-300"
+                    >
+                      Send task back with feedback →
+                    </button>
+                  )}
+                  {task.review_feedback && (
+                    <div className="mt-2 pt-2 border-t border-amber-500/10">
+                      <span className="text-[10px] text-text-muted">Previous feedback:</span>
+                      <p className="text-xs text-text-secondary mt-0.5">{task.review_feedback}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

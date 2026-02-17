@@ -3,12 +3,14 @@
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
 import { v4 as uuid } from 'uuid';
 import os from 'os';
 import { execSync } from 'child_process';
 import { getDb, queryAll, queryOne, run } from './db/index.js';
 import { addClient, broadcast } from './sse.js';
+import { seedEpicIfNeeded } from './seed-epic.js';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { mkdirSync, existsSync } from 'fs';
@@ -358,26 +360,99 @@ app.delete('/api/openclaw/sessions/:id', (c) => {
   return c.json({ ok: true });
 });
 
-// ─── Task Dispatch ───────────────────────────────────────
+// ─── Task Dispatch (Phase 2: Auto-dispatch hook) ─────────
 app.post('/api/tasks/:id/dispatch', async (c) => {
   const id = c.req.param('id');
-  const task = queryOne<Task>('SELECT * FROM tasks WHERE id = ?', [id]);
+  const task = queryOne<any>('SELECT t.*, a.name as agent_name FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?', [id]);
   if (!task) return c.json({ error: 'Task not found' }, 404);
   if (!task.assigned_agent_id) return c.json({ error: 'No agent assigned' }, 400);
 
   run('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', ['active', new Date().toISOString(), id]);
 
+  // Auto-dispatch hook: log for now, wire to Gateway later
+  const feedbackCtx = task.review_feedback ? ` | Review feedback: ${task.review_feedback}` : '';
+  console.log(`[AUTO-DISPATCH] Task "${task.title}" → Agent ${task.agent_name} (${task.assigned_agent_id})${feedbackCtx}`);
+  console.log(`[AUTO-DISPATCH] Would call: sessions_spawn(agentId=${task.assigned_agent_id}, taskId=${id})`);
+
   const actId = uuid();
+  const message = task.review_feedback
+    ? `Task re-dispatched with feedback: "${task.review_feedback}"`
+    : `Task dispatched to agent`;
   run(
     `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
      VALUES (?, ?, ?, 'status_changed', ?, ?)`,
-    [actId, id, task.assigned_agent_id, `Task dispatched to agent`, new Date().toISOString()]
+    [actId, id, task.assigned_agent_id, message, new Date().toISOString()]
   );
 
   const updated = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
   broadcast({ type: 'task_updated', payload: enrichTask(updated) });
   return c.json({ ok: true, task: enrichTask(updated) });
+});
+
+// ─── Crons (Phase 2: mock data) ─────────────────────────
+app.get('/api/crons', (c) => {
+  const mockCrons = [
+    { id: '1', name: 'daily-email-rollup', schedule: '0 9 * * *', last_run: '2026-02-17T09:00:00Z', next_run: '2026-02-18T09:00:00Z', status: 'ok', agent: 'Alex' },
+    { id: '2', name: 'seo-keyword-scan', schedule: '0 */6 * * *', last_run: '2026-02-17T18:00:00Z', next_run: '2026-02-18T00:00:00Z', status: 'ok', agent: 'Leo' },
+    { id: '3', name: 'competitor-monitor', schedule: '0 8 * * 1', last_run: '2026-02-10T08:00:00Z', next_run: '2026-02-17T08:00:00Z', status: 'ok', agent: 'Leo' },
+    { id: '4', name: 'backup-workspace', schedule: '0 3 * * *', last_run: '2026-02-17T03:00:00Z', next_run: '2026-02-18T03:00:00Z', status: 'ok', agent: 'Noah' },
+    { id: '5', name: 'heartbeat-check', schedule: '*/30 * * * *', last_run: '2026-02-17T21:30:00Z', next_run: '2026-02-17T22:00:00Z', status: 'running', agent: 'System' },
+  ];
+  return c.json(mockCrons);
+});
+
+app.post('/api/crons/:id/trigger', (c) => {
+  const id = c.req.param('id');
+  console.log(`[CRON-TRIGGER] Manual trigger for cron ${id}`);
+  return c.json({ ok: true, message: `Cron ${id} triggered` });
+});
+
+// ─── Overnight Summary (Phase 3) ────────────────────────
+app.get('/api/overnight', (c) => {
+  // Get events from last 8 hours, grouped by agent
+  const cutoff = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+  const events = queryAll<any>(
+    `SELECT e.*, a.name as agent_name, a.avatar_emoji as agent_emoji
+     FROM events e LEFT JOIN agents a ON e.agent_id = a.id
+     WHERE e.created_at > ? ORDER BY e.created_at DESC`, [cutoff]
+  );
+
+  // Group by agent
+  const grouped = new Map<string, { agent_id: string; agent_name: string; agent_emoji: string; events: any[] }>();
+  for (const e of events) {
+    const key = e.agent_id || 'system';
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        agent_id: key,
+        agent_name: e.agent_name || 'System',
+        agent_emoji: e.agent_emoji || '⚙️',
+        events: [],
+      });
+    }
+    grouped.get(key)!.events.push(e);
+  }
+
+  // Generate summaries
+  const summaries = Array.from(grouped.values()).map((g) => {
+    const taskEvents = g.events.filter((e: any) => e.type.startsWith('task_'));
+    const completed = g.events.filter((e: any) => e.type === 'task_completed').length;
+    const parts = [];
+    if (completed > 0) parts.push(`${completed} task${completed > 1 ? 's' : ''} completed`);
+    if (taskEvents.length - completed > 0) parts.push(`${taskEvents.length - completed} other task events`);
+    if (parts.length === 0) parts.push(`${g.events.length} events`);
+
+    return {
+      agent_id: g.agent_id,
+      agent_name: g.agent_name,
+      agent_emoji: g.agent_emoji,
+      summary: parts.join(', '),
+      event_count: g.events.length,
+      events: g.events,
+    };
+  });
+
+  return c.json(summaries);
 });
 
 // ─── KANBAN.md Sync (legacy) ─────────────────────────────
@@ -411,10 +486,14 @@ function enrichTask(row: any): Task {
   return task;
 }
 
+// ─── Static files (serve built frontend) ─────────────────
+app.use('/*', serveStatic({ root: './dist' }));
+
 // ─── Start ───────────────────────────────────────────────
 const port = parseInt(process.env.PORT || '18790');
 
 getDb();
+seedEpicIfNeeded();
 
 serve({ fetch: app.fetch, hostname: '0.0.0.0', port }, () => {
   console.log(`🚀 Nexus API running at http://0.0.0.0:${port}`);

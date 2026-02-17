@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X, Save, Trash2 } from 'lucide-react';
+import { X, Save, Trash2, DollarSign } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMissionStore } from '@/store';
+import { usePrivacyStore } from '@/store/privacy';
 import type { Agent } from '@/shared/types';
 
 interface AgentModalProps {
@@ -12,6 +13,7 @@ interface AgentModalProps {
 
 export function AgentModal({ agent, onClose, onAgentCreated }: AgentModalProps) {
   const { addAgent, updateAgent } = useMissionStore();
+  const { demoMode } = usePrivacyStore();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: agent?.name || '',
@@ -135,6 +137,26 @@ export function AgentModal({ agent, onClose, onAgentCreated }: AgentModalProps) 
             />
             <span className="text-sm text-text-secondary">Master agent (orchestrator)</span>
           </label>
+
+          {/* Per-agent cost breakdown (Phase 3) */}
+          {agent && !demoMode && (
+            <div className="mt-2 p-3 bg-bg-deep rounded-lg border border-border-subtle">
+              <div className="flex items-center gap-1.5 mb-2">
+                <DollarSign className="w-3.5 h-3.5 text-accent" />
+                <span className="text-[10px] uppercase text-text-secondary font-semibold">Cost Breakdown</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-text-muted block">Today</span>
+                  <span className="text-sm font-mono text-accent">$1.24</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-text-muted block">This Week</span>
+                  <span className="text-sm font-mono text-accent">$8.67</span>
+                </div>
+              </div>
+            </div>
+          )}
         </form>
 
         <div className="flex items-center justify-between p-4 border-t border-border-subtle">

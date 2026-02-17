@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDroppable } from '@dnd-kit/core';
 import { useMissionStore } from '@/store';
+import { useViewStore } from '@/store/views';
+import { usePrivacyStore, maskAgentName } from '@/store/privacy';
 import type { Agent, AgentStatus, SystemVitals } from '@/shared/types';
 import { AgentModal } from './AgentModal';
 
 type FilterTab = 'all' | 'working' | 'standby';
 
-function DroppableAgent({ agent, onClick, statusColor }: { agent: Agent; onClick: () => void; statusColor: (s: AgentStatus) => string }) {
+function DroppableAgent({ agent, onClick, statusColor, isFiltered, demoMode }: { agent: Agent; onClick: () => void; statusColor: (s: AgentStatus) => string; isFiltered?: boolean; demoMode?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `agent-drop-${agent.id}` });
 
   return (
@@ -19,7 +21,7 @@ function DroppableAgent({ agent, onClick, statusColor }: { agent: Agent; onClick
       exit={{ opacity: 0, x: -10 }}
       onClick={onClick}
       className={`w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-bg-elevated transition-all text-left ${
-        isOver ? 'bg-accent/20 border border-accent/40 ring-1 ring-accent/30' : 'border border-transparent'
+        isOver ? 'bg-accent/20 border border-accent/40 ring-1 ring-accent/30' : isFiltered ? 'border border-accent/30 bg-accent/5' : 'border border-transparent'
       }`}
     >
       <div className="relative text-xl">
@@ -28,7 +30,7 @@ function DroppableAgent({ agent, onClick, statusColor }: { agent: Agent; onClick
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-sm font-medium truncate">{agent.name}</span>
+          <span className="text-sm font-medium truncate">{demoMode ? maskAgentName(agent.name, true) : agent.name}</span>
           {!!agent.is_master && <span className="text-[10px] text-amber-400">★</span>}
         </div>
         <span className="text-[10px] text-text-secondary truncate block">{agent.role}</span>
@@ -61,6 +63,8 @@ function VitalsBar({ label, percent, color, icon: Icon }: { label: string; perce
 
 export function AgentsSidebar() {
   const { agents } = useMissionStore();
+  const { agentFilter, setAgentFilter } = useViewStore();
+  const { demoMode } = usePrivacyStore();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
@@ -140,8 +144,14 @@ export function AgentsSidebar() {
             <DroppableAgent
               key={agent.id}
               agent={agent}
-              onClick={() => setEditAgent(agent)}
+              onClick={() => {
+                // Right-click or ctrl-click for filtering; normal click opens modal
+                setAgentFilter(agent.id);
+                setEditAgent(agent);
+              }}
               statusColor={statusColor}
+              isFiltered={agentFilter === agent.id}
+              demoMode={demoMode}
             />
           ))}
         </AnimatePresence>
@@ -169,9 +179,34 @@ export function AgentsSidebar() {
         ) : (
           <div className="text-[9px] text-text-muted text-center">Loading vitals...</div>
         )}
+        {/* LLM Fuel Gauges */}
+        <div className="pt-1 border-t border-border-subtle/50 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Zap className="w-3 h-3 text-text-muted shrink-0" />
+            <span className="text-[9px] text-text-muted uppercase">LLM Usage</span>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[9px] text-text-secondary">Claude Opus</span>
+              <span className="text-[9px] text-text-muted">{demoMode ? '—' : '67%'}</span>
+            </div>
+            <div className="h-1 bg-bg-elevated rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-purple-500 transition-all duration-500" style={{ width: demoMode ? '0%' : '67%' }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[9px] text-text-secondary">Claude Sonnet</span>
+              <span className="text-[9px] text-text-muted">{demoMode ? '—' : '34%'}</span>
+            </div>
+            <div className="h-1 bg-bg-elevated rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: demoMode ? '0%' : '34%' }} />
+            </div>
+          </div>
+        </div>
         <div className="flex items-center justify-between pt-1 border-t border-border-subtle/50">
           <span className="text-[9px] text-text-muted uppercase">LLM Cost/day</span>
-          <span className="text-[10px] font-mono text-accent">{llmCost}</span>
+          <span className="text-[10px] font-mono text-accent">{demoMode ? '$—' : llmCost}</span>
         </div>
       </div>
 

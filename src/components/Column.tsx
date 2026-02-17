@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight } from 'lucide-react';
 import type { Task, TaskStatus } from '@/shared/types';
 import { SortableTaskCard } from './SortableTaskCard';
 import { QuickAdd } from './QuickAdd';
@@ -12,6 +14,34 @@ interface ColumnProps {
 
 export function Column({ column, tasks }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const [collapsed, setCollapsed] = useState(column.id === 'done');
+
+  // Collapsed Done column
+  if (collapsed && column.id === 'done') {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`w-14 flex flex-col items-center rounded-xl border cursor-pointer transition-all duration-200 hover:border-accent/30 ${
+          isOver ? 'border-accent/40 bg-accent/5' : 'border-border-subtle bg-bg-surface/30'
+        }`}
+        onClick={() => setCollapsed(false)}
+      >
+        <div className="py-3 flex flex-col items-center gap-2">
+          <span className="text-sm">{column.emoji}</span>
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ backgroundColor: `${column.color}20`, color: column.color }}
+          >
+            {tasks.length}
+          </span>
+          <span className="text-[9px] text-text-muted uppercase tracking-wider" style={{ writingMode: 'vertical-rl' }}>
+            {column.label}
+          </span>
+          <ChevronRight className="w-3 h-3 text-text-muted" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -29,12 +59,23 @@ export function Column({ column, tasks }: ColumnProps) {
             {column.label}
           </h3>
         </div>
-        <span
-          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-          style={{ backgroundColor: `${column.color}20`, color: column.color }}
-        >
-          {tasks.length}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ backgroundColor: `${column.color}20`, color: column.color }}
+          >
+            {tasks.length}
+          </span>
+          {column.id === 'done' && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="p-0.5 rounded hover:bg-bg-elevated text-text-muted"
+              title="Collapse"
+            >
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Quick-add for inbox */}
