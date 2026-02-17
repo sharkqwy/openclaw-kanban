@@ -1,1 +1,1 @@
-export { useBoardStore } from './board'
+export { useMissionStore } from './mission';

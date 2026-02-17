@@ -1,209 +1,111 @@
-# OpenClaw Kanban 🦞
+# 🚀 Mission Control
 
-> A visual kanban board natively integrated with [OpenClaw](https://github.com/openclaw/openclaw)
+Visual task management, agent orchestration, and real-time monitoring for OpenClaw.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+**Stack:** Vite + React 19 + Tailwind CSS 4 + Zustand + @dnd-kit + Framer Motion + Hono + better-sqlite3
 
-<p align="center">
-  <img src="./assets/screenshot.png" alt="OpenClaw Kanban Screenshot" width="800">
-</p>
-
-## ✨ Features
-
-- **📋 Visual Kanban Board** — Drag-and-drop task management
-- **📝 Markdown Persistence** — Syncs with `KANBAN.md` (git-friendly)
-- **🔗 OpenClaw Integration** — Real-time session/agent activity
-- **⏰ Task Automation** — Create cron jobs from tasks
-- **🎨 Beautiful UI** — Matches [openclaw.ai](https://openclaw.ai) design
-
-## 🚀 Quick Start
-
-### Option 1: npx (Recommended)
-```bash
-npx openclaw-kanban
-```
-
-### Option 2: Global Install
-```bash
-npm install -g openclaw-kanban
-openclaw-kanban
-```
-
-### Option 3: From Source
-```bash
-git clone https://github.com/sharkqwy/openclaw-kanban
-cd openclaw-kanban
-pnpm install
-pnpm dev
-```
-
-## 🤖 CLI Commands (for Humans & Agents)
-
-OpenClaw Kanban provides CLI commands for managing tasks without the UI - perfect for automation and AI agents:
+## Quick Start
 
 ```bash
-# List all tasks with IDs
-openclaw-kanban list
-
-# Add a task to Inbox
-openclaw-kanban add "Review PR #123"
-
-# Add a task directly to Today
-openclaw-kanban add "Fix critical bug" --to today
-
-# Start working on a task (moves to In Progress)
-openclaw-kanban start 3
-
-# Mark a task as done
-openclaw-kanban done 3
-
-# Move a task to a specific column
-openclaw-kanban move 2 today
-openclaw-kanban move 5 progress
+npm install
+npm run dev
 ```
 
-### Column Names
-- `inbox` - New tasks, ideas
-- `today` - Tasks to do today
-- `progress` / `inprogress` - Currently working on
-- `done` - Completed tasks
+This starts both:
+- **API server** on `http://localhost:18790` (Hono + SQLite)
+- **Frontend** on `http://localhost:5173` (Vite dev server, proxies API calls)
 
-### Agent Integration
+## Features
 
-OpenClaw agents can manage their own kanban:
+### Kanban Board (7 columns)
+- **Planning → Inbox → Assigned → In Progress → Testing → Review → Done**
+- Drag-and-drop with smooth animations
+- Auto-dispatch when tasks move to "In Progress" with an assigned agent
 
-1. **Direct file editing** - Agents can read/write `KANBAN.md` directly
-2. **CLI commands** - Use the commands above for structured operations
-3. **Web UI** - Visual management at `http://localhost:5173`
+### Task Management
+- Full CRUD with priority, assignment, due dates
+- Activity log per task (real-time polling)
+- Deliverables tracking (files, URLs, artifacts)
+- Sub-agent session tracking
 
-The markdown format is simple and agent-friendly:
-```markdown
-# Today
-- [ ] Pending task
-- [~] In-progress task
-- [x] Completed task
+### Agent System
+- Collapsible sidebar with agent CRUD
+- Status indicators (standby/working/offline)
+- Filter by status
+
+### Real-time Updates
+- SSE (Server-Sent Events) for live task updates
+- Live feed panel (collapsible right sidebar)
+- Event filtering (all/tasks/agents)
+
+### UI
+- Dark OLED-friendly theme (#050810 background)
+- Emerald green accent (#22C55E)
+- Framer Motion transitions
+- Responsive layout with collapsible sidebars
+
+## Architecture
+
+```
+src/
+├── server/          # Hono API server (runs on Node.js)
+│   ├── db/          # SQLite schema and helpers
+│   ├── sse.ts       # SSE broadcaster
+│   └── index.ts     # API routes
+├── shared/          # Types shared between client and server
+│   └── types.ts
+├── store/           # Zustand state management
+│   └── mission.ts
+├── hooks/           # React hooks
+│   └── useSSE.ts    # SSE connection hook
+├── components/      # React components
+│   ├── Board.tsx    # Main kanban board
+│   ├── Column.tsx   # Individual column
+│   ├── TaskCard.tsx # Task card
+│   ├── TaskModal.tsx # Task detail/edit modal
+│   ├── AgentsSidebar.tsx
+│   ├── LiveFeed.tsx
+│   └── ...
+└── lib/             # Legacy utilities (gateway, openclaw-api)
 ```
 
-## 📖 How It Works
+## API Endpoints
 
-OpenClaw Kanban reads and writes to your `KANBAN.md` file:
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/status` | Health check |
+| GET/POST | `/api/tasks` | List/create tasks |
+| GET/PATCH/DELETE | `/api/tasks/:id` | Get/update/delete task |
+| GET/POST | `/api/tasks/:id/activities` | Task activity log |
+| GET/POST | `/api/tasks/:id/deliverables` | Task deliverables |
+| GET/POST | `/api/tasks/:id/subagent` | Sub-agent sessions |
+| POST | `/api/tasks/:id/dispatch` | Dispatch task to agent |
+| GET/POST | `/api/agents` | List/create agents |
+| PATCH/DELETE | `/api/agents/:id` | Update/delete agent |
+| GET/POST | `/api/events` | List/create events |
+| GET | `/api/events/stream` | SSE stream |
+| GET | `/read` | Read KANBAN.md (legacy) |
+| POST | `/write` | Write KANBAN.md (legacy) |
 
-```markdown
-# KANBAN
-
-## 📥 Inbox
-- [ ] New task idea
-
-## 🎯 Today
-- [ ] Important task
-- [x] Completed task ✓
-
-## 🔄 In Progress
-- [~] Currently working on
-
-## ✅ Done
-- [x] Finished task
-```
-
-Changes in the UI automatically sync to the file, and vice versa.
-
-## 🔌 OpenClaw Integration
-
-Connect to your running OpenClaw Gateway to:
-
-- See active sessions and agents
-- View real-time activity feed
-- Create scheduled reminders (cron jobs)
-- Link tasks to specific sessions
+## Scripts
 
 ```bash
-# Make sure OpenClaw Gateway is running
-openclaw gateway status
+npm run dev        # Start server + client
+npm run server     # Start API server only
+npm run dev:client # Start Vite dev only
+npm run build      # Production build
+npm run test       # Run tests (Vitest)
+npm run test:watch # Tests in watch mode
 ```
 
-## 🤖 For OpenClaw Agents
+## Environment Variables
 
-OpenClaw agents should use the kanban to track work:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `18790` | API server port |
+| `DATABASE_PATH` | `./mission-control.db` | SQLite database path |
+| `KANBAN_FILE` | `./KANBAN.md` | Legacy KANBAN.md path |
 
-### Workflow
-1. **Receive task** → Add to Inbox or Today
-2. **Start work** → Move to In Progress
-3. **Complete** → Move to Done with timestamp
+## License
 
-### In AGENTS.md
-```markdown
-## Kanban
-Track all tasks in KANBAN.md:
-- `openclaw-kanban list` - see current state
-- `openclaw-kanban add "task"` - add new task
-- `openclaw-kanban done <id>` - mark complete
-```
-
-### Direct File Format
-```markdown
-# In Progress
-
-- [~] Current task !high #project
-  - Started: 2026-02-01 19:52
-
-# Done
-
-- [x] Completed task #project
-  - Completed: 2026-02-01 18:30
-```
-
-### Task Metadata
-- `!high` / `!low` - Priority
-- `#tag` - Categories
-- `@session` - Link to session
-- Subtasks with indented `-` lines
-
-## 🎨 Design
-
-Built with the [openclaw.ai](https://openclaw.ai) design system:
-- Dark theme with coral (#ff4d4d) and cyan (#00e5cc) accents
-- Clash Display + Satoshi fonts
-- Smooth animations and transitions
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    OpenClaw Kanban                       │
-├─────────────────────────────────────────────────────────┤
-│  Frontend (React + Vite + Tailwind)                     │
-│  - @dnd-kit for drag-and-drop                           │
-│  - Zustand for state management                         │
-│  - remark for markdown parsing                          │
-├─────────────────────────────────────────────────────────┤
-│  OpenClaw Gateway API                                   │
-│  - WebSocket for real-time updates                      │
-│  - sessions_list for active agents                      │
-│  - cron for scheduled tasks                             │
-├─────────────────────────────────────────────────────────┤
-│  Storage: KANBAN.md                                     │
-│  - Human-readable markdown                              │
-│  - Git-friendly, diffable                               │
-└─────────────────────────────────────────────────────────┘
-```
-
-## 🙏 Acknowledgments
-
-This project is heavily inspired by and references:
-- **[VibeKanban](https://github.com/BloopAI/vibe-kanban)** by BloopAI — The original kanban for AI coding agents
-- **[OpenClaw](https://github.com/openclaw/openclaw)** — The AI assistant platform
-- **[openclaw.ai](https://github.com/openclaw/openclaw.ai)** — Design system reference
-
-## 📄 License
-
-MIT © [OpenClaw Contributors](https://github.com/openclaw)
-
-## 🤝 Contributing
-
-Contributions welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) first.
-
----
-
-<p align="center">
-  Made with 🦞 for the OpenClaw community
-</p>
+MIT

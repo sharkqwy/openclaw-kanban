@@ -1,121 +1,99 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
   closestCorners,
-  KeyboardSensor,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
-} from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-
-import { useBoardStore } from '@/store'
-import type { Card as CardType, CardStatus } from '@/types'
-import { Column } from './Column'
-import { Card } from './Card'
-import { SyncIndicator } from './SyncIndicator'
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useMissionStore } from '@/store';
+import type { Task, TaskStatus } from '@/shared/types';
+import { TASK_COLUMNS } from '@/shared/types';
+import { Column } from './Column';
+import { TaskCard } from './TaskCard';
 
 export function Board() {
-  const columns = useBoardStore((state) => state.columns)
-  const moveCard = useBoardStore((state) => state.moveCard)
-  const reorderCard = useBoardStore((state) => state.reorderCard)
-  const loadFromFile = useBoardStore((state) => state.loadFromFile)
-  
-  // Load from file on mount
-  useEffect(() => {
-    loadFromFile()
-  }, [loadFromFile])
-
-  const [activeCard, setActiveCard] = useState<CardType | null>(null)
+  const { tasks, updateTaskStatus, isLoading } = useMissionStore();
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement before drag starts
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-  const findCardById = useCallback((id: string): CardType | null => {
-    for (const column of columns) {
-      const card = column.cards.find(c => c.id === id)
-      if (card) return card
-    }
-    return null
-  }, [columns])
+  const getTasksByStatus = useCallback(
+    (status: TaskStatus) => tasks.filter((t) => t.status === status),
+    [tasks]
+  );
 
-  const findColumnByCardId = useCallback((cardId: string): CardStatus | null => {
-    for (const column of columns) {
-      if (column.cards.some(c => c.id === cardId)) {
-        return column.id
-      }
-    }
-    return null
-  }, [columns])
+  const findTaskById = useCallback(
+    (id: string) => tasks.find((t) => t.id === id) || null,
+    [tasks]
+  );
+
+  const findColumnByTaskId = useCallback(
+    (id: string): TaskStatus | null => {
+      const task = tasks.find((t) => t.id === id);
+      return task?.status || null;
+    },
+    [tasks]
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
-    const card = findCardById(event.active.id as string)
-    setActiveCard(card)
-  }
+    setActiveTask(findTaskById(event.active.id as string));
+  };
 
-  const handleDragOver = (_event: DragOverEvent) => {
-    // We could handle real-time preview here if needed
-    // For now, we just update on drag end
-  }
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+    if (!over) return;
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveCard(null)
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    const sourceStatus = findColumnByTaskId(activeId);
+    if (!sourceStatus) return;
 
-    if (!over) return
+    // Determine target column
+    const isColumn = TASK_COLUMNS.some((c) => c.id === overId);
+    const targetStatus = isColumn ? (overId as TaskStatus) : findColumnByTaskId(overId);
+    if (!targetStatus || sourceStatus === targetStatus) return;
 
-    const activeId = active.id as string
-    const overId = over.id as string
+    // Optimistic update
+    updateTaskStatus(activeId, targetStatus);
 
-    const activeColumnId = findColumnByCardId(activeId)
-    if (!activeColumnId) return
+    // Persist
+    try {
+      const res = await fetch(`/api/tasks/${activeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: targetStatus }),
+      });
 
-    // Check if dropping on a column or a card
-    const isOverColumn = ['inbox', 'today', 'in-progress', 'done'].includes(overId)
-    
-    if (isOverColumn) {
-      // Dropped directly on a column
-      const targetColumnId = overId as CardStatus
-      if (activeColumnId !== targetColumnId) {
-        moveCard(activeId, activeColumnId, targetColumnId)
-      }
-    } else {
-      // Dropped on another card
-      const overColumnId = findColumnByCardId(overId)
-      if (!overColumnId) return
-
-      if (activeColumnId === overColumnId) {
-        // Reordering within same column
-        const column = columns.find(c => c.id === activeColumnId)
-        if (!column) return
-
-        const fromIndex = column.cards.findIndex(c => c.id === activeId)
-        const toIndex = column.cards.findIndex(c => c.id === overId)
-
-        if (fromIndex !== toIndex) {
-          reorderCard(activeColumnId, fromIndex, toIndex)
+      if (res.ok) {
+        // Auto-dispatch if moved to in_progress with assigned agent
+        const task = findTaskById(activeId);
+        if (targetStatus === 'in_progress' && task?.assigned_agent_id) {
+          fetch(`/api/tasks/${activeId}/dispatch`, { method: 'POST' }).catch(console.error);
         }
       } else {
-        // Moving to different column
-        const toColumn = columns.find(c => c.id === overColumnId)
-        if (!toColumn) return
-
-        const toIndex = toColumn.cards.findIndex(c => c.id === overId)
-        moveCard(activeId, activeColumnId, overColumnId, toIndex)
+        updateTaskStatus(activeId, sourceStatus); // revert
       }
+    } catch {
+      updateTaskStatus(activeId, sourceStatus); // revert
     }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-text-secondary animate-pulse">Loading missions...</div>
+      </div>
+    );
   }
 
   return (
@@ -123,51 +101,21 @@ export function Board() {
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen bg-bg-deep p-6 lg:p-8">
-        {/* Header */}
-        <header className="kanban-header">
-          <div className="kanban-header__top">
-            <div className="kanban-header__logo">
-              K
-            </div>
-            <h1 className="kanban-header__title">
-              OpenClaw Kanban
-            </h1>
-            <SyncIndicator />
-          </div>
-          <p className="kanban-header__subtitle">
-            Drag tasks between columns to update their status
-          </p>
-        </header>
-
-        {/* Board grid */}
-        <div 
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5"
-          role="main"
-          aria-label="Kanban board"
-        >
-          {columns.map(column => (
-            <Column key={column.id} column={column} />
-          ))}
-        </div>
-
-        {/* Footer */}
-        <footer className="kanban-footer">
-          <p>
-            Syncs with <code>KANBAN.md</code> • Built for OpenClaw
-          </p>
-        </footer>
+      <div className="flex-1 flex gap-3 p-4 overflow-x-auto">
+        {TASK_COLUMNS.map((col) => (
+          <Column
+            key={col.id}
+            column={col}
+            tasks={getTasksByStatus(col.id)}
+          />
+        ))}
       </div>
 
-      {/* Drag overlay - shows card being dragged */}
       <DragOverlay>
-        {activeCard ? (
-          <Card card={activeCard} isDragging />
-        ) : null}
+        {activeTask && <TaskCard task={activeTask} isDragging />}
       </DragOverlay>
     </DndContext>
-  )
+  );
 }

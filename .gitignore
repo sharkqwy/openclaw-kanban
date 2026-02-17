@@ -38,3 +38,5 @@ coverage
 # Misc
 *.tgz
 .ralph
+mission-control.db
+mission-control.db-*
