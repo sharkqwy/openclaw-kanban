@@ -83,11 +83,11 @@ export function AgentsSidebar() {
   const statusColor = (s: AgentStatus) =>
     s === 'working' ? 'bg-accent' : s === 'standby' ? 'bg-text-secondary' : 'bg-gray-600';
 
-  const llmCost = process.env.LLM_DAILY_COST || '$—';
+  const llmCost = '$—';
 
   if (minimized) {
     return (
-      <aside className="w-12 bg-bg-surface border-r border-border-subtle flex flex-col items-center py-3 gap-3">
+      <aside className="w-12 bg-bg-surface border-r border-border-subtle flex flex-col items-center py-3 gap-2.5 transition-all duration-250 ease-out">
         <button onClick={() => setMinimized(false)} className="p-1 rounded hover:bg-bg-elevated text-text-secondary">
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -108,7 +108,7 @@ export function AgentsSidebar() {
   }
 
   return (
-    <aside className="w-60 bg-bg-surface border-r border-border-subtle flex flex-col shrink-0">
+    <aside className="w-60 bg-bg-surface border-r border-border-subtle flex flex-col shrink-0 transition-all duration-250 ease-out">
       {/* Header */}
       <div className="p-3 border-b border-border-subtle">
         <div className="flex items-center justify-between mb-3">

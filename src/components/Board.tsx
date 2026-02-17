@@ -117,8 +117,15 @@ export function Board() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-secondary animate-pulse">Loading missions...</div>
+      <div className="flex-1 flex gap-3 p-4">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex-1 min-w-[220px] max-w-[320px] rounded-xl border border-border-subtle bg-bg-surface/20 p-3">
+            <div className="skeleton h-4 w-20 mb-4" />
+            {[1, 2, 3].slice(0, i % 3 + 1).map((j) => (
+              <div key={j} className="skeleton h-20 w-full mb-2 rounded-[10px]" />
+            ))}
+          </div>
+        ))}
       </div>
     );
   }
@@ -131,7 +138,7 @@ export function Board() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex-1 flex gap-3 p-4 overflow-x-auto">
+      <div className="flex-1 flex gap-3 p-3 overflow-x-auto">
         {TASK_COLUMNS.map((col) => (
           <Column
             key={col.id}
