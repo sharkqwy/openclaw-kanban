@@ -1,10 +1,12 @@
 /**
- * Mission Control API Server (Hono + better-sqlite3)
+ * Nexus API Server (Hono + better-sqlite3)
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { v4 as uuid } from 'uuid';
+import os from 'os';
+import { execSync } from 'child_process';
 import { getDb, queryAll, queryOne, run } from './db/index.js';
 import { addClient, broadcast } from './sse.js';
 import { readFile, writeFile } from 'fs/promises';
@@ -18,18 +20,65 @@ app.use('*', cors());
 
 // ─── Health ──────────────────────────────────────────────
 app.get('/api/status', (c) => {
-  return c.json({ ok: true, version: '2.0.0' });
+  return c.json({ ok: true, version: '3.0.0-nexus' });
+});
+
+// ─── System Vitals ───────────────────────────────────────
+app.get('/api/system', (c) => {
+  const cpus = os.cpus();
+  const cpuUsage = cpus.reduce((acc, cpu) => {
+    const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+    const idle = cpu.times.idle;
+    return acc + ((total - idle) / total) * 100;
+  }, 0) / cpus.length;
+
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+
+  // Disk usage (macOS/Linux)
+  let diskUsed = 0, diskTotal = 0;
+  try {
+    const df = execSync('df -k / 2>/dev/null').toString().split('\n')[1]?.split(/\s+/);
+    if (df) {
+      diskTotal = parseInt(df[1]) * 1024;
+      diskUsed = parseInt(df[2]) * 1024;
+    }
+  } catch { /* ignore */ }
+
+  return c.json({
+    cpu: Math.round(cpuUsage),
+    memory: { used: usedMem, total: totalMem, percent: Math.round((usedMem / totalMem) * 100) },
+    disk: { used: diskUsed, total: diskTotal, percent: diskTotal ? Math.round((diskUsed / diskTotal) * 100) : 0 },
+    uptime: os.uptime(),
+  });
 });
 
 // ─── Tasks CRUD ──────────────────────────────────────────
+const TASK_FIELDS = ['title', 'description', 'status', 'priority', 'assigned_agent_id', 'due_date',
+  'parent_task_id', 'definition_of_done', 'tags', 'is_epic', 'review_feedback', 'task_order',
+  'planning_session_key', 'planning_messages', 'planning_complete', 'planning_spec', 'planning_agents', 'planning_dispatch_error'];
+
 app.get('/api/tasks', (c) => {
   const workspace = c.req.query('workspace_id');
   let sql = `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id`;
   const params: string[] = [];
   if (workspace) { sql += ' WHERE t.workspace_id = ?'; params.push(workspace); }
-  sql += ' ORDER BY t.updated_at DESC';
+  sql += ' ORDER BY t.task_order ASC, t.updated_at DESC';
   const tasks = queryAll<any>(sql, params).map(enrichTask);
+
+  // Attach child progress for EPICs
+  for (const task of tasks) {
+    if (task.is_epic) {
+      const children = queryAll<any>('SELECT status FROM tasks WHERE parent_task_id = ?', [task.id]);
+      task.child_progress = {
+        total: children.length,
+        done: children.filter((c: any) => c.status === 'done').length,
+      };
+    }
+  }
+
   return c.json(tasks);
 });
 
@@ -38,11 +87,13 @@ app.post('/api/tasks', async (c) => {
   const id = uuid();
   const now = new Date().toISOString();
   run(
-    `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, due_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, due_date,
+     parent_task_id, definition_of_done, tags, is_epic, review_feedback, task_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, body.title, body.description || null, body.status || 'inbox', body.priority || 'normal',
      body.assigned_agent_id || null, body.created_by_agent_id || null, body.workspace_id || 'default',
-     body.due_date || null, now, now]
+     body.due_date || null, body.parent_task_id || null, body.definition_of_done || null,
+     body.tags || null, body.is_epic ? 1 : 0, body.review_feedback || null, body.task_order || 0, now, now]
   );
   const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
@@ -55,7 +106,32 @@ app.get('/api/tasks/:id', (c) => {
   const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [c.req.param('id')]);
   if (!task) return c.json({ error: 'Not found' }, 404);
-  return c.json(enrichTask(task));
+  const enriched = enrichTask(task);
+
+  // If EPIC, include children
+  if (enriched.is_epic) {
+    enriched.child_tasks = queryAll<any>(
+      `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+       FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
+       ORDER BY t.task_order ASC, t.created_at ASC`, [enriched.id]
+    ).map(enrichTask);
+    enriched.child_progress = {
+      total: enriched.child_tasks.length,
+      done: enriched.child_tasks.filter((c: any) => c.status === 'done').length,
+    };
+  }
+
+  return c.json(enriched);
+});
+
+// Get child tasks for an EPIC
+app.get('/api/tasks/:id/children', (c) => {
+  const children = queryAll<any>(
+    `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
+     ORDER BY t.task_order ASC, t.created_at ASC`, [c.req.param('id')]
+  ).map(enrichTask);
+  return c.json(children);
 });
 
 app.patch('/api/tasks/:id', async (c) => {
@@ -64,7 +140,7 @@ app.patch('/api/tasks/:id', async (c) => {
   const fields: string[] = [];
   const params: unknown[] = [];
 
-  for (const key of ['title', 'description', 'status', 'priority', 'assigned_agent_id', 'due_date', 'planning_session_key', 'planning_messages', 'planning_complete', 'planning_spec', 'planning_agents', 'planning_dispatch_error']) {
+  for (const key of TASK_FIELDS) {
     if (key in body) { fields.push(`${key} = ?`); params.push(body[key]); }
   }
   if (fields.length === 0) return c.json({ error: 'No fields' }, 400);
@@ -230,15 +306,10 @@ app.get('/api/events/stream', (c) => {
         try { controller.enqueue(encoder.encode(data)); } catch { /* closed */ }
       };
 
-      // Send initial ping
       send(': connected\n\n');
-
       const remove = addClient(send);
-
-      // Keep-alive every 30s
       const keepAlive = setInterval(() => send(': ping\n\n'), 30000);
 
-      // Cleanup when client disconnects
       c.req.raw.signal.addEventListener('abort', () => {
         remove();
         clearInterval(keepAlive);
@@ -277,7 +348,6 @@ app.patch('/api/openclaw/sessions/:id', async (c) => {
   }
   fields.push('updated_at = ?'); params.push(new Date().toISOString());
   params.push(id);
-  // Try matching by id or openclaw_session_id
   run(`UPDATE openclaw_sessions SET ${fields.join(', ')} WHERE id = ? OR openclaw_session_id = ?`, [...params.slice(0, -1), id, id]);
   return c.json({ ok: true });
 });
@@ -295,10 +365,8 @@ app.post('/api/tasks/:id/dispatch', async (c) => {
   if (!task) return c.json({ error: 'Task not found' }, 404);
   if (!task.assigned_agent_id) return c.json({ error: 'No agent assigned' }, 400);
 
-  // Move to in_progress
-  run('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', ['in_progress', new Date().toISOString(), id]);
+  run('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', ['active', new Date().toISOString(), id]);
 
-  // Log activity
   const actId = uuid();
   run(
     `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
@@ -346,11 +414,10 @@ function enrichTask(row: any): Task {
 // ─── Start ───────────────────────────────────────────────
 const port = parseInt(process.env.PORT || '18790');
 
-// Ensure DB is initialized
 getDb();
 
-serve({ fetch: app.fetch, port }, () => {
-  console.log(`🚀 Mission Control API running at http://localhost:${port}`);
+serve({ fetch: app.fetch, hostname: '0.0.0.0', port }, () => {
+  console.log(`🚀 Nexus API running at http://0.0.0.0:${port}`);
 });
 
 export default app;
