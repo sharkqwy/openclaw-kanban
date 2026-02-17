@@ -133,5 +133,5 @@ export async function onSubAgentCompleted(params: {
 }
 
 export function shouldAutoDispatch(prevStatus: string | undefined, newStatus: string, assignedAgentId: string | null): boolean {
-  return prevStatus !== 'in_progress' && newStatus === 'in_progress' && !!assignedAgentId;
+  return prevStatus !== 'active' && newStatus === 'active' && !!assignedAgentId;
 }

@@ -3,6 +3,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Task, TaskStatus } from '@/shared/types';
 import { SortableTaskCard } from './SortableTaskCard';
+import { QuickAdd } from './QuickAdd';
 
 interface ColumnProps {
   column: { id: TaskStatus; label: string; emoji: string; color: string };
@@ -35,6 +36,13 @@ export function Column({ column, tasks }: ColumnProps) {
           {tasks.length}
         </span>
       </div>
+
+      {/* Quick-add for inbox */}
+      {column.id === 'inbox' && (
+        <div className="border-b border-border-subtle/50">
+          <QuickAdd />
+        </div>
+      )}
 
       {/* Cards */}
       <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>

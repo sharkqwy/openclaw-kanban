@@ -9,6 +9,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useMissionStore } from '@/store';
@@ -20,6 +21,7 @@ import { TaskCard } from './TaskCard';
 export function Board() {
   const { tasks, updateTaskStatus, isLoading } = useMissionStore();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [, setDragOverAgent] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -27,7 +29,7 @@ export function Board() {
   );
 
   const getTasksByStatus = useCallback(
-    (status: TaskStatus) => tasks.filter((t) => t.status === status),
+    (status: TaskStatus) => tasks.filter((t) => t.status === status && !t.parent_task_id),
     [tasks]
   );
 
@@ -48,9 +50,20 @@ export function Board() {
     setActiveTask(findTaskById(event.active.id as string));
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const overId = event.over?.id as string;
+    // Check if dragging over an agent in sidebar
+    if (overId?.startsWith('agent-drop-')) {
+      setDragOverAgent(overId.replace('agent-drop-', ''));
+    } else {
+      setDragOverAgent(null);
+    }
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    setDragOverAgent(null);
     if (!over) return;
 
     const activeId = active.id as string;
@@ -58,15 +71,30 @@ export function Board() {
     const sourceStatus = findColumnByTaskId(activeId);
     if (!sourceStatus) return;
 
+    // Dropped on agent → assign + move to active
+    if (overId.startsWith('agent-drop-')) {
+      const agentId = overId.replace('agent-drop-', '');
+      updateTaskStatus(activeId, 'active');
+      try {
+        const res = await fetch(`/api/tasks/${activeId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'active', assigned_agent_id: agentId }),
+        });
+        if (!res.ok) updateTaskStatus(activeId, sourceStatus);
+      } catch {
+        updateTaskStatus(activeId, sourceStatus);
+      }
+      return;
+    }
+
     // Determine target column
     const isColumn = TASK_COLUMNS.some((c) => c.id === overId);
     const targetStatus = isColumn ? (overId as TaskStatus) : findColumnByTaskId(overId);
     if (!targetStatus || sourceStatus === targetStatus) return;
 
-    // Optimistic update
     updateTaskStatus(activeId, targetStatus);
 
-    // Persist
     try {
       const res = await fetch(`/api/tasks/${activeId}`, {
         method: 'PATCH',
@@ -75,16 +103,15 @@ export function Board() {
       });
 
       if (res.ok) {
-        // Auto-dispatch if moved to in_progress with assigned agent
         const task = findTaskById(activeId);
-        if (targetStatus === 'in_progress' && task?.assigned_agent_id) {
+        if (targetStatus === 'active' && task?.assigned_agent_id) {
           fetch(`/api/tasks/${activeId}/dispatch`, { method: 'POST' }).catch(console.error);
         }
       } else {
-        updateTaskStatus(activeId, sourceStatus); // revert
+        updateTaskStatus(activeId, sourceStatus);
       }
     } catch {
-      updateTaskStatus(activeId, sourceStatus); // revert
+      updateTaskStatus(activeId, sourceStatus);
     }
   };
 
@@ -101,6 +128,7 @@ export function Board() {
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 flex gap-3 p-4 overflow-x-auto">

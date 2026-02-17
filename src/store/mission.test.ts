@@ -57,8 +57,8 @@ describe('useMissionStore', () => {
 
     it('updates task status', () => {
       useMissionStore.getState().addTask(mockTask());
-      useMissionStore.getState().updateTaskStatus('task-1', 'in_progress');
-      expect(useMissionStore.getState().tasks[0].status).toBe('in_progress');
+      useMissionStore.getState().updateTaskStatus('task-1', 'active');
+      expect(useMissionStore.getState().tasks[0].status).toBe('active');
     });
 
     it('updates a task', () => {
