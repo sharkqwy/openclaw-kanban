@@ -1,12 +1,37 @@
 # 🚀 Mission Control
 
-Visual task management, agent orchestration, and real-time monitoring for OpenClaw.
+Visual task management, agent orchestration, and real-time monitoring for [OpenClaw](https://openclaw.ai).
 
 **Stack:** Vite + React 19 + Tailwind CSS 4 + Zustand + @dnd-kit + Framer Motion + Hono + better-sqlite3
 
-## Quick Start
+## Install & Run
 
 ```bash
+# Run instantly (no install needed)
+npx openclaw-kanban
+
+# Or install globally
+npm install -g openclaw-kanban
+openclaw-kanban
+```
+
+Opens a web UI at `http://localhost:18790` with a kanban board, agent sidebar, and live feed.
+
+### CLI Commands
+
+```bash
+npx openclaw-kanban                      # Start web UI
+npx openclaw-kanban add "Deploy to prod" # Add task to Inbox
+npx openclaw-kanban list                 # List all tasks
+npx openclaw-kanban move <id> <column>   # Move task between columns
+npx openclaw-kanban done <id>            # Mark task as done
+```
+
+## Development
+
+```bash
+git clone https://github.com/sharkqwy/openclaw-kanban.git
+cd openclaw-kanban
 npm install
 npm run dev
 ```
