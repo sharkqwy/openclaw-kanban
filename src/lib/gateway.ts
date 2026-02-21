@@ -124,14 +124,15 @@ class GatewayClient {
     }
   }
   
-  private handleMessage(msg: any) {
+  private handleMessage(msg: Record<string, unknown>) {
     if (msg.type === 'sessions.list.result') {
-      const sessions: GatewaySession[] = (msg.sessions || []).map((s: any) => ({
-        key: s.key || s.sessionKey,
-        kind: s.kind || 'main',
-        model: s.model,
-        lastActivity: s.lastActivity,
-        channel: s.channel,
+      const rawSessions = (msg.sessions ?? []) as Record<string, unknown>[]
+      const sessions: GatewaySession[] = rawSessions.map((s) => ({
+        key: (s.key ?? s.sessionKey) as string,
+        kind: (s.kind as GatewaySession['kind']) || 'main',
+        model: s.model as string | undefined,
+        lastActivity: s.lastActivity as number | undefined,
+        channel: s.channel as string | undefined,
       }))
       this.updateState({ sessions })
     } else if (msg.type === 'session.activity') {

@@ -17,7 +17,7 @@ export interface OpenClawSession {
   lastChannel?: string
   messages?: Array<{
     role: string
-    content: any
+    content: string | Record<string, unknown>
     timestamp?: number
   }>
 }
@@ -109,7 +109,7 @@ class OpenClawAPI {
   /**
    * Get session history
    */
-  async getSessionHistory(sessionKey: string, limit = 20): Promise<{ messages: any[] }> {
+  async getSessionHistory(sessionKey: string, limit = 20): Promise<{ messages: Array<{ role: string; content: string | Record<string, unknown>; timestamp?: number }> }> {
     return this.request(`/api/sessions/${encodeURIComponent(sessionKey)}/history?limit=${limit}`)
   }
   
