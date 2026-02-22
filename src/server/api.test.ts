@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { schema } from './db/schema';
 
+interface TableRow { name: string }
+interface TaskRow { id: string; title: string; status: string; priority: string; assigned_agent_id?: string; agent_name?: string }
+interface ActivityRow { id: string; task_id: string; activity_type: string; message: string }
+interface DeliverableRow { id: string; task_id: string; deliverable_type: string; title: string; path: string }
+
 // Test the DB schema and query patterns directly
 describe('Database Schema', () => {
   let db: Database.Database;
@@ -17,19 +22,19 @@ describe('Database Schema', () => {
   });
 
   it('creates tasks table', () => {
-    const result = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'").get() as any;
+    const result = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'").get() as TableRow | undefined;
     expect(result).toBeTruthy();
     expect(result.name).toBe('tasks');
   });
 
   it('creates agents table', () => {
-    const result = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'").get() as any;
+    const result = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'").get() as TableRow | undefined;
     expect(result).toBeTruthy();
   });
 
   it('inserts and queries a task', () => {
     db.prepare(`INSERT INTO tasks (id, title, status, priority) VALUES (?, ?, ?, ?)`).run('t1', 'Test', 'inbox', 'normal');
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get('t1') as any;
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get('t1') as TaskRow | undefined;
     expect(task.title).toBe('Test');
     expect(task.status).toBe('inbox');
   });
@@ -37,7 +42,7 @@ describe('Database Schema', () => {
   it('inserts an agent and assigns to task', () => {
     db.prepare(`INSERT INTO agents (id, name, role) VALUES (?, ?, ?)`).run('a1', 'Marcus', 'Builder');
     db.prepare(`UPDATE tasks SET assigned_agent_id = ? WHERE id = ?`).run('a1', 't1');
-    const task = db.prepare('SELECT t.*, a.name as agent_name FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?').get('t1') as any;
+    const task = db.prepare('SELECT t.*, a.name as agent_name FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?').get('t1') as TaskRow | undefined;
     expect(task.agent_name).toBe('Marcus');
   });
 
@@ -55,22 +60,22 @@ describe('Database Schema', () => {
 
   it('creates and queries activities', () => {
     db.prepare(`INSERT INTO task_activities (id, task_id, activity_type, message) VALUES (?, ?, ?, ?)`).run('act1', 't1', 'spawned', 'Sub-agent spawned');
-    const activities = db.prepare('SELECT * FROM task_activities WHERE task_id = ?').all('t1') as any[];
+    const activities = db.prepare('SELECT * FROM task_activities WHERE task_id = ?').all('t1') as ActivityRow[];
     expect(activities).toHaveLength(1);
     expect(activities[0].activity_type).toBe('spawned');
   });
 
   it('creates deliverables', () => {
     db.prepare(`INSERT INTO task_deliverables (id, task_id, deliverable_type, title, path) VALUES (?, ?, ?, ?, ?)`).run('d1', 't1', 'file', 'Output', '/tmp/out.txt');
-    const deliverables = db.prepare('SELECT * FROM task_deliverables WHERE task_id = ?').all('t1') as any[];
+    const deliverables = db.prepare('SELECT * FROM task_deliverables WHERE task_id = ?').all('t1') as DeliverableRow[];
     expect(deliverables).toHaveLength(1);
     expect(deliverables[0].deliverable_type).toBe('file');
   });
 
   it('cascades task deletion to activities and deliverables', () => {
     db.prepare('DELETE FROM tasks WHERE id = ?').run('t1');
-    const activities = db.prepare('SELECT * FROM task_activities WHERE task_id = ?').all('t1') as any[];
-    const deliverables = db.prepare('SELECT * FROM task_deliverables WHERE task_id = ?').all('t1') as any[];
+    const activities = db.prepare('SELECT * FROM task_activities WHERE task_id = ?').all('t1') as ActivityRow[];
+    const deliverables = db.prepare('SELECT * FROM task_deliverables WHERE task_id = ?').all('t1') as DeliverableRow[];
     expect(activities).toHaveLength(0);
     expect(deliverables).toHaveLength(0);
   });

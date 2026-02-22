@@ -151,7 +151,8 @@ export function LearningsDashboard() {
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount is a standard React pattern
+  useEffect(() => { void loadData(); }, [loadData]);
 
   const filtered = filter === 'all' ? entries : entries.filter(e => e.status === filter);
 
