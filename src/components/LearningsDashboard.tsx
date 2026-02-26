@@ -151,7 +151,22 @@ export function LearningsDashboard() {
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    // Fetch initial data on mount; async to avoid sync setState in effect body
+    let cancelled = false;
+    (async () => {
+      try {
+        const [statsRes, entriesRes] = await Promise.all([
+          fetch('/api/knowledge/learnings/stats'),
+          fetch('/api/knowledge/learnings/entries'),
+        ]);
+        if (cancelled) return;
+        if (statsRes.ok) setStats(await statsRes.json());
+        if (entriesRes.ok) setEntries(await entriesRes.json());
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = filter === 'all' ? entries : entries.filter(e => e.status === filter);
 
