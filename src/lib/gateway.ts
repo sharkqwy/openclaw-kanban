@@ -124,9 +124,10 @@ class GatewayClient {
     }
   }
   
-  private handleMessage(msg: any) {
+  private handleMessage(msg: Record<string, unknown>) {
     if (msg.type === 'sessions.list.result') {
-      const sessions: GatewaySession[] = (msg.sessions || []).map((s: any) => ({
+      const rawSessions = (msg.sessions || []) as Array<Record<string, unknown>>
+      const sessions: GatewaySession[] = rawSessions.map((s) => ({
         key: s.key || s.sessionKey,
         kind: s.kind || 'main',
         model: s.model,

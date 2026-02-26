@@ -12,6 +12,13 @@ import { resolve, dirname } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import type { Task, Agent, TaskActivity, TaskDeliverable, Event as MCEvent } from '../shared/types.js';
 
+/** DB row shape for the tasks+agents JOIN query */
+interface TaskRow extends Task {
+  agent_name?: string;
+  agent_emoji?: string;
+  agent_role?: string;
+}
+
 const app = new Hono();
 
 app.use('*', cors());
@@ -29,7 +36,7 @@ app.get('/api/tasks', (c) => {
   const params: string[] = [];
   if (workspace) { sql += ' WHERE t.workspace_id = ?'; params.push(workspace); }
   sql += ' ORDER BY t.updated_at DESC';
-  const tasks = queryAll<any>(sql, params).map(enrichTask);
+  const tasks = queryAll<TaskRow>(sql, params).map(enrichTask);
   return c.json(tasks);
 });
 
@@ -44,7 +51,7 @@ app.post('/api/tasks', async (c) => {
      body.assigned_agent_id || null, body.created_by_agent_id || null, body.workspace_id || 'default',
      body.due_date || null, now, now]
   );
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
   const enriched = enrichTask(task);
   broadcast({ type: 'task_created', payload: enriched });
@@ -52,7 +59,7 @@ app.post('/api/tasks', async (c) => {
 });
 
 app.get('/api/tasks/:id', (c) => {
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [c.req.param('id')]);
   if (!task) return c.json({ error: 'Not found' }, 404);
   return c.json(enrichTask(task));
@@ -73,7 +80,7 @@ app.patch('/api/tasks/:id', async (c) => {
   params.push(id);
   run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
   const enriched = enrichTask(task);
   broadcast({ type: 'task_updated', payload: enriched });
@@ -306,7 +313,7 @@ app.post('/api/tasks/:id/dispatch', async (c) => {
     [actId, id, task.assigned_agent_id, `Task dispatched to agent`, new Date().toISOString()]
   );
 
-  const updated = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const updated = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
   broadcast({ type: 'task_updated', payload: enrichTask(updated) });
   return c.json({ ok: true, task: enrichTask(updated) });
@@ -319,8 +326,8 @@ app.get('/read', async (c) => {
   try {
     const content = await readFile(KANBAN_PATH, 'utf-8');
     return c.text(content);
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return c.text('File not found', 404);
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') return c.text('File not found', 404);
     throw err;
   }
 });
@@ -334,7 +341,7 @@ app.post('/write', async (c) => {
 });
 
 // ─── Helper ──────────────────────────────────────────────
-function enrichTask(row: any): Task {
+function enrichTask(row: TaskRow): Task {
   if (!row) return row;
   const { agent_name, agent_emoji, agent_role, ...task } = row;
   if (agent_name) {
