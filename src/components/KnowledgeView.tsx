@@ -112,7 +112,7 @@ function renderMarkdown(content: string, onNavigate: (path: string) => void): Re
     if (tokens.length === 0) return <span key={key}>{text}</span>;
 
     // Fallback: render with basic replacements
-    let remaining = text;
+    const remaining = text;
     let pIdx = 0;
 
     // Inline code
