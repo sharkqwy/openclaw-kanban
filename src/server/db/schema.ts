@@ -95,6 +95,16 @@ CREATE TABLE IF NOT EXISTS openclaw_sessions (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Comments table
+CREATE TABLE IF NOT EXISTS comments (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  agent_id TEXT REFERENCES agents(id),
+  author_name TEXT NOT NULL DEFAULT 'Operator',
+  content TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_agent_id);
@@ -104,6 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activities_task ON task_activities(task_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_deliverables_task ON task_deliverables(task_id);
 CREATE INDEX IF NOT EXISTS idx_openclaw_sessions_task ON openclaw_sessions(task_id);
+CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id, created_at ASC);
 `;
 
 /**

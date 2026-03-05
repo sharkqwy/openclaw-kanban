@@ -380,6 +380,62 @@ app.post('/api/tasks/:id/dispatch', async (c) => {
   return c.json({ ok: true, task: enrichTask(updated) });
 });
 
+// ─── Comments ────────────────────────────────────────────
+app.get('/api/tasks/:id/comments', (c) => {
+  const comments = queryAll(
+    `SELECT c.*, a.name as agent_name, a.avatar_emoji as agent_emoji
+     FROM comments c LEFT JOIN agents a ON c.agent_id = a.id
+     WHERE c.task_id = ? ORDER BY c.created_at ASC`, [c.req.param('id')]
+  );
+  return c.json(comments);
+});
+
+app.post('/api/tasks/:id/comments', async (c) => {
+  const taskId = c.req.param('id');
+  const body = await c.req.json();
+  const id = uuid();
+  const now = new Date().toISOString();
+  run(
+    `INSERT INTO comments (id, task_id, agent_id, author_name, content, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, taskId, body.agent_id || null, body.author_name || 'Operator', body.content, now]
+  );
+  const comment = queryOne('SELECT * FROM comments WHERE id = ?', [id]);
+  broadcast({ type: 'activity_logged', payload: { task_id: taskId, type: 'comment', message: body.content } });
+  return c.json(comment, 201);
+});
+
+// ─── Dashboard Metrics ───────────────────────────────────
+app.get('/api/metrics', (c) => {
+  const tasks = queryAll<any>('SELECT status, priority, is_epic FROM tasks');
+  const agents = queryAll<any>('SELECT status FROM agents');
+
+  const byStatus: Record<string, number> = {};
+  const byPriority: Record<string, number> = {};
+  let epicTotal = 0, epicDone = 0;
+
+  for (const t of tasks) {
+    byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+    byPriority[t.priority] = (byPriority[t.priority] || 0) + 1;
+    if (t.is_epic) {
+      epicTotal++;
+      if (t.status === 'done') epicDone++;
+    }
+  }
+
+  const agentStats = { total: agents.length, working: 0, standby: 0, offline: 0 };
+  for (const a of agents) {
+    if (a.status in agentStats) (agentStats as any)[a.status]++;
+  }
+
+  return c.json({
+    tasks: { total: tasks.length, by_status: byStatus, by_priority: byPriority },
+    agents: agentStats,
+    recent_completions: byStatus.done || 0,
+    epics: { total: epicTotal, in_progress: epicTotal - epicDone, completed: epicDone },
+  });
+});
+
 // ─── KANBAN.md Sync (legacy) ─────────────────────────────
 const KANBAN_PATH = process.env.KANBAN_FILE || resolve(process.cwd(), 'KANBAN.md');
 

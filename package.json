@@ -1,7 +1,7 @@
 {
   "name": "openclaw-kanban",
-  "version": "2.0.0",
-  "description": "Mission Control — Visual task management, agent orchestration, and real-time monitoring for OpenClaw",
+  "version": "4.0.0",
+  "description": "Mission Control v4 — Multi-panel dashboard, agent fleet management, and real-time task orchestration for OpenClaw",
   "type": "module",
   "license": "MIT",
   "author": "OpenClaw",

@@ -42,7 +42,7 @@ function DroppableAgent({ agent, onClick, statusColor }: { agent: Agent; onClick
   );
 }
 
-function VitalsBar({ label, percent, color, icon: Icon }: { label: string; percent: number; color: string; icon: any }) {
+function VitalsBar({ label, percent, color, icon: Icon }: { label: string; percent: number; color: string; icon: typeof Cpu }) {
   return (
     <div className="flex items-center gap-2">
       <Icon className="w-3 h-3 text-text-muted shrink-0" />
@@ -78,8 +78,6 @@ export function AgentsSidebar() {
   const filtered = agents.filter((a) => filter === 'all' || a.status === filter);
   const statusColor = (s: AgentStatus) =>
     s === 'working' ? 'bg-accent' : s === 'standby' ? 'bg-text-secondary' : 'bg-gray-600';
-
-  const llmCost = process.env.LLM_DAILY_COST || '$—';
 
   if (minimized) {
     return (
@@ -169,10 +167,6 @@ export function AgentsSidebar() {
         ) : (
           <div className="text-[9px] text-text-muted text-center">Loading vitals...</div>
         )}
-        <div className="flex items-center justify-between pt-1 border-t border-border-subtle/50">
-          <span className="text-[9px] text-text-muted uppercase">LLM Cost/day</span>
-          <span className="text-[10px] font-mono text-accent">{llmCost}</span>
-        </div>
       </div>
 
       {showCreate && <AgentModal onClose={() => setShowCreate(false)} />}

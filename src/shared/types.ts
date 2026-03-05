@@ -1,11 +1,31 @@
-// Core types for Nexus (Mission Control v3)
+// Core types for Mission Control v4
 
 export type AgentStatus = 'standby' | 'working' | 'offline';
 export type TaskStatus = 'planning' | 'inbox' | 'active' | 'review' | 'done';
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type ActivityType = 'spawned' | 'updated' | 'completed' | 'file_created' | 'status_changed';
+export type ActivityType = 'spawned' | 'updated' | 'completed' | 'file_created' | 'status_changed' | 'comment';
 export type DeliverableType = 'file' | 'url' | 'artifact';
 export type EventType = 'task_created' | 'task_assigned' | 'task_status_changed' | 'task_completed' | 'agent_status_changed' | 'agent_joined' | 'system';
+
+// Navigation
+export type PanelId = 'dashboard' | 'board' | 'agents' | 'activity';
+
+export interface Comment {
+  id: string;
+  task_id: string;
+  agent_id?: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+  agent?: Agent;
+}
+
+export interface DashboardMetrics {
+  tasks: { total: number; by_status: Record<TaskStatus, number>; by_priority: Record<TaskPriority, number> };
+  agents: { total: number; working: number; standby: number; offline: number };
+  recent_completions: number;
+  epics: { total: number; in_progress: number; completed: number };
+}
 
 export interface Agent {
   id: string;
@@ -117,11 +137,19 @@ export interface SSEEvent {
   payload: unknown;
 }
 
-// Column config for the board — Phase 1: reduced to 5 columns
+// Column config for the board — 5 streamlined columns
 export const TASK_COLUMNS: { id: TaskStatus; label: string; emoji: string; color: string }[] = [
   { id: 'planning', label: 'Planning', emoji: '📋', color: '#a855f7' },
   { id: 'inbox', label: 'Inbox', emoji: '📥', color: '#ec4899' },
   { id: 'active', label: 'Active', emoji: '⚡', color: '#22c55e' },
   { id: 'review', label: 'Review', emoji: '👁️', color: '#8b5cf6' },
   { id: 'done', label: 'Done', emoji: '✅', color: '#10b981' },
+];
+
+// Navigation panels
+export const PANELS: { id: PanelId; label: string; emoji: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', emoji: '📊' },
+  { id: 'board', label: 'Board', emoji: '📋' },
+  { id: 'agents', label: 'Agents', emoji: '🤖' },
+  { id: 'activity', label: 'Activity', emoji: '📡' },
 ];

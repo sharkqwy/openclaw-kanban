@@ -6,8 +6,9 @@ import type { Task, TaskPriority, TaskStatus } from '@/shared/types';
 import { ActivityLog } from './ActivityLog';
 import { DeliverablesList } from './DeliverablesList';
 import { SessionsList } from './SessionsList';
+import { CommentsList } from './CommentsList';
 
-type TabType = 'overview' | 'activity' | 'deliverables' | 'sessions';
+type TabType = 'overview' | 'activity' | 'deliverables' | 'sessions' | 'comments';
 
 interface TaskModalProps {
   task: Task;
@@ -68,6 +69,7 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
 
   const tabs = [
     { id: 'overview' as TabType, label: 'Overview' },
+    { id: 'comments' as TabType, label: 'Comments' },
     { id: 'activity' as TabType, label: 'Activity', icon: <Activity className="w-3.5 h-3.5" /> },
     { id: 'deliverables' as TabType, label: 'Deliverables', icon: <Package className="w-3.5 h-3.5" /> },
     { id: 'sessions' as TabType, label: 'Sessions', icon: <Bot className="w-3.5 h-3.5" /> },
@@ -171,6 +173,7 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
             </div>
           )}
 
+          {tab === 'comments' && <CommentsList taskId={task.id} />}
           {tab === 'activity' && <ActivityLog taskId={task.id} />}
           {tab === 'deliverables' && <DeliverablesList taskId={task.id} />}
           {tab === 'sessions' && <SessionsList taskId={task.id} />}
