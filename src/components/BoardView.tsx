@@ -1,3 +1,7 @@
+/**
+ * BoardView — Wraps AgentsSidebar + Header + Board in a shared DndContext
+ * so that drag-to-agent works (AgentsSidebar uses useDroppable).
+ */
 import { useState, useCallback } from 'react';
 import {
   DndContext,
@@ -15,10 +19,12 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useMissionStore } from '@/store';
 import type { Task, TaskStatus } from '@/shared/types';
 import { TASK_COLUMNS } from '@/shared/types';
-import { Column } from './Column';
+import { AgentsSidebar } from './AgentsSidebar';
+import { Header } from './Header';
+import { BoardColumns } from './BoardColumns';
 import { TaskCard } from './TaskCard';
 
-export function Board() {
+export function BoardView() {
   const { tasks, updateTaskStatus, isLoading } = useMissionStore();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [, setDragOverAgent] = useState<string | null>(null);
@@ -52,7 +58,6 @@ export function Board() {
 
   const handleDragOver = (event: DragOverEvent) => {
     const overId = event.over?.id as string;
-    // Check if dragging over an agent in sidebar
     if (overId?.startsWith('agent-drop-')) {
       setDragOverAgent(overId.replace('agent-drop-', ''));
     } else {
@@ -131,14 +136,12 @@ export function Board() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex-1 flex gap-3 p-4 overflow-x-auto">
-        {TASK_COLUMNS.map((col) => (
-          <Column
-            key={col.id}
-            column={col}
-            tasks={getTasksByStatus(col.id)}
-          />
-        ))}
+      <div className="flex-1 flex min-w-0">
+        <AgentsSidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header />
+          <BoardColumns getTasksByStatus={getTasksByStatus} />
+        </div>
       </div>
 
       <DragOverlay>

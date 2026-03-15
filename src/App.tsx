@@ -1,14 +1,16 @@
 import { useEffect } from 'react';
 import { useMissionStore } from '@/store';
 import { useSSE } from '@/hooks/useSSE';
-import { Board } from '@/components/Board';
-import { AgentsSidebar } from '@/components/AgentsSidebar';
+import { NavRail } from '@/components/NavRail';
+import { Dashboard } from '@/components/Dashboard';
+import { BoardView } from '@/components/BoardView';
+import { AgentsPanel } from '@/components/AgentsPanel';
+import { ActivityPanel } from '@/components/ActivityPanel';
 import { LiveFeed } from '@/components/LiveFeed';
 import { TaskModal } from '@/components/TaskModal';
-import { Header } from '@/components/Header';
 
 function App() {
-  const { setTasks, setAgents, setEvents, setIsLoading, selectedTask, setSelectedTask } = useMissionStore();
+  const { setTasks, setAgents, setEvents, setIsLoading, selectedTask, setSelectedTask, activePanel, showLiveFeed } = useMissionStore();
 
   useSSE();
 
@@ -37,14 +39,26 @@ function App() {
     load();
   }, [setTasks, setAgents, setEvents, setIsLoading]);
 
+  const renderPanel = () => {
+    switch (activePanel) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'board':
+        return <BoardView />;
+      case 'agents':
+        return <AgentsPanel />;
+      case 'activity':
+        return <ActivityPanel />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-bg-deep text-text-primary overflow-hidden">
-      <AgentsSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <Board />
-      </div>
-      <LiveFeed />
+      <NavRail />
+      {renderPanel()}
+      {showLiveFeed && <LiveFeed />}
       {selectedTask && (
         <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}

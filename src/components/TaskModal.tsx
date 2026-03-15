@@ -6,15 +6,16 @@ import type { Task, TaskPriority, TaskStatus } from '@/shared/types';
 import { ActivityLog } from './ActivityLog';
 import { DeliverablesList } from './DeliverablesList';
 import { SessionsList } from './SessionsList';
+import { CommentsList } from './CommentsList';
 
-type TabType = 'overview' | 'activity' | 'deliverables' | 'sessions';
+type TabType = 'overview' | 'activity' | 'deliverables' | 'sessions' | 'comments';
 
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
 }
 
-const STATUSES: TaskStatus[] = ['planning', 'inbox', 'assigned', 'in_progress', 'testing', 'review', 'done'];
+const STATUSES: TaskStatus[] = ['planning', 'inbox', 'active', 'review', 'done'];
 const PRIORITIES: TaskPriority[] = ['low', 'normal', 'high', 'urgent'];
 
 export function TaskModal({ task, onClose }: TaskModalProps) {
@@ -46,8 +47,8 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
         const updated = await res.json();
         updateTask(updated);
 
-        // Auto-dispatch if moved to in_progress
-        if (task.status !== 'in_progress' && updated.status === 'in_progress' && updated.assigned_agent_id) {
+        // Auto-dispatch if moved to active
+        if (task.status !== 'active' && updated.status === 'active' && updated.assigned_agent_id) {
           fetch(`/api/tasks/${task.id}/dispatch`, { method: 'POST' }).catch(console.error);
         }
         onClose();
@@ -68,6 +69,7 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
 
   const tabs = [
     { id: 'overview' as TabType, label: 'Overview' },
+    { id: 'comments' as TabType, label: 'Comments' },
     { id: 'activity' as TabType, label: 'Activity', icon: <Activity className="w-3.5 h-3.5" /> },
     { id: 'deliverables' as TabType, label: 'Deliverables', icon: <Package className="w-3.5 h-3.5" /> },
     { id: 'sessions' as TabType, label: 'Sessions', icon: <Bot className="w-3.5 h-3.5" /> },
@@ -171,6 +173,7 @@ export function TaskModal({ task, onClose }: TaskModalProps) {
             </div>
           )}
 
+          {tab === 'comments' && <CommentsList taskId={task.id} />}
           {tab === 'activity' && <ActivityLog taskId={task.id} />}
           {tab === 'deliverables' && <DeliverablesList taskId={task.id} />}
           {tab === 'sessions' && <SessionsList taskId={task.id} />}
