@@ -380,19 +380,6 @@ export function KnowledgeView() {
     fetch('/api/knowledge/insights').then(r => r.json()).then(setInsights).catch(() => {});
   }, []);
 
-  // Handle learnings folder click
-  const handleSelect = useCallback((path: string) => {
-    if (path === '__learnings__') {
-      setShowLearningsDashboard(true);
-      setSelectedPath('__learnings__');
-      setDoc(null);
-      setSearchResults(null);
-      return;
-    }
-    setShowLearningsDashboard(false);
-    loadDoc(path);
-  }, []);
-
   // Load document
   const loadDoc = useCallback(async (path: string) => {
     setSelectedPath(path);
@@ -408,6 +395,19 @@ export function KnowledgeView() {
       setLoading(false);
     }
   }, []);
+
+  // Handle learnings folder click
+  const handleSelect = useCallback((path: string) => {
+    if (path === '__learnings__') {
+      setShowLearningsDashboard(true);
+      setSelectedPath('__learnings__');
+      setDoc(null);
+      setSearchResults(null);
+      return;
+    }
+    setShowLearningsDashboard(false);
+    loadDoc(path);
+  }, [loadDoc]);
 
   // Search
   useEffect(() => {
