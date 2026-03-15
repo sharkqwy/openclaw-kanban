@@ -6,8 +6,6 @@ import { useMissionStore } from '@/store';
 import type { Agent, AgentStatus } from '@/shared/types';
 import { AgentModal } from './AgentModal';
 
-type ViewMode = 'grid' | 'list';
-
 function AgentDetailCard({ agent, onEdit, onDelete, taskCount }: {
   agent: Agent; onEdit: () => void; onDelete: () => void; taskCount: number
 }) {
@@ -96,7 +94,6 @@ export function AgentsPanel() {
   const [statusFilter, setStatusFilter] = useState<AgentStatus | 'all'>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
-  const [_viewMode, _setViewMode] = useState<ViewMode>('grid');
 
   const filtered = agents
     .filter((a) => statusFilter === 'all' || a.status === statusFilter)
