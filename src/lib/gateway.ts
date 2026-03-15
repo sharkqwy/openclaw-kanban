@@ -124,15 +124,25 @@ class GatewayClient {
     }
   }
   
-  private handleMessage(msg: any) {
+  private handleMessage(msg: Record<string, unknown>) {
     if (msg.type === 'sessions.list.result') {
-      const sessions: GatewaySession[] = (msg.sessions || []).map((s: any) => ({
-        key: s.key || s.sessionKey,
-        kind: s.kind || 'main',
-        model: s.model,
-        lastActivity: s.lastActivity,
-        channel: s.channel,
-      }))
+      const rawSessions = (msg.sessions || []) as Array<Record<string, unknown>>
+      const sessions = rawSessions
+        .map((s): GatewaySession | null => {
+          const key = typeof s.key === 'string' ? s.key : typeof s.sessionKey === 'string' ? s.sessionKey : undefined
+          if (!key) return null
+
+          const kind: GatewaySession['kind'] = s.kind === 'spawned' || s.kind === 'cron' ? s.kind : 'main'
+
+          return {
+            key,
+            kind,
+            model: typeof s.model === 'string' ? s.model : undefined,
+            lastActivity: typeof s.lastActivity === 'number' ? s.lastActivity : undefined,
+            channel: typeof s.channel === 'string' ? s.channel : undefined,
+          }
+        })
+        .filter((session): session is GatewaySession => session !== null)
       this.updateState({ sessions })
     } else if (msg.type === 'session.activity') {
       // Real-time activity update

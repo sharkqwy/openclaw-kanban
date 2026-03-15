@@ -465,7 +465,7 @@ app.get('/read', async (c) => {
     const content = await readFile(KANBAN_PATH, 'utf-8');
     return c.text(content);
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return c.text('File not found', 404);
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') return c.text('File not found', 404);
     throw err;
   }
 });
