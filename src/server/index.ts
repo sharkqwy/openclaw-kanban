@@ -14,6 +14,7 @@ import { seedEpicIfNeeded } from './seed-epic.js';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { mkdirSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 import type { Task, Agent, TaskActivity, TaskDeliverable, Event as MCEvent } from '../shared/types.js';
 
 const app = new Hono();
@@ -456,6 +457,8 @@ app.get('/api/overnight', (c) => {
 });
 
 // ─── KANBAN.md Sync (legacy) ─────────────────────────────
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
+const DIST_ROOT = process.env.DIST_ROOT || resolve(SERVER_DIR, '../../dist');
 const KANBAN_PATH = process.env.KANBAN_FILE || resolve(process.cwd(), 'KANBAN.md');
 
 app.get('/read', async (c) => {
@@ -487,7 +490,7 @@ function enrichTask(row: any): Task {
 }
 
 // ─── Static files (serve built frontend) ─────────────────
-app.use('/*', serveStatic({ root: './dist' }));
+app.use('/*', serveStatic({ root: DIST_ROOT }));
 
 // ─── Start ───────────────────────────────────────────────
 const port = parseInt(process.env.PORT || '18790');

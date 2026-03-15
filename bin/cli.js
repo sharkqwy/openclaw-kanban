@@ -10,7 +10,7 @@
  *   npx openclaw-kanban done <id>          # Mark task done
  */
 
-import { createServer } from 'http'
+import { spawn } from 'child_process'
 import { readFile, writeFile, mkdir, access } from 'fs/promises'
 import { dirname, resolve, isAbsolute, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -20,8 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // Parse CLI args
 const args = process.argv.slice(2)
 let filePath = './KANBAN.md'
-let port = 5173
-let fileServerPort = 18790
+let port = 18790
 let command = 'serve' // default command
 
 // Column mappings
@@ -156,7 +155,7 @@ Commands:
 
 Options:
   --file <path>       Path to KANBAN.md (default: ./KANBAN.md)
-  --port <number>     Web UI port (default: 5173)
+  --port <number>     Mission Control port (default: 18790)
   -h, --help          Show this help
 
 Columns: inbox, today, progress, done
@@ -321,123 +320,54 @@ async function moveTask(taskId, targetColumn, newStatus = null) {
 
 async function cmdServe() {
   await ensureFile()
-  
+
+  const distPath = join(__dirname, '..', 'dist')
+  const serverEntry = join(__dirname, '..', 'dist-server', 'server', 'index.js')
+  const databasePath = resolve(process.cwd(), 'mission-control.db')
+
+  try {
+    await access(distPath)
+    await access(serverEntry)
+  } catch {
+    console.error('❌ Built app not found. Run `npm run build` first.')
+    process.exit(1)
+  }
+
   console.log(`
 📋 OpenClaw Kanban
 `)
   console.log(`📄 Using: ${absolutePath}`)
-  
-  // Start file server
-  const fileServer = createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-    
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204)
-      res.end()
+  console.log(`🗄️  Database: ${databasePath}`)
+  console.log(`🚀 Board: http://localhost:${port}`)
+  console.log('')
+  console.log('Press Ctrl+C to stop')
+
+  const child = spawn(process.execPath, [serverEntry], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      PORT: String(port),
+      KANBAN_FILE: absolutePath,
+      DATABASE_PATH: databasePath,
+      DIST_ROOT: distPath,
+    },
+  })
+
+  child.on('exit', (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal)
       return
     }
-    
-    const url = new URL(req.url, `http://localhost:${fileServerPort}`)
-    
-    try {
-      if (url.pathname === '/read' && req.method === 'GET') {
-        try {
-          const content = await readFile(absolutePath, 'utf-8')
-          res.writeHead(200, { 'Content-Type': 'text/plain' })
-          res.end(content)
-        } catch (err) {
-          if (err.code === 'ENOENT') {
-            res.writeHead(404)
-            res.end('File not found')
-          } else {
-            throw err
-          }
-        }
-      } else if (url.pathname === '/write' && req.method === 'POST') {
-        const chunks = []
-        for await (const chunk of req) {
-          chunks.push(chunk)
-        }
-        const content = Buffer.concat(chunks).toString('utf-8')
-        await writeFile(absolutePath, content, 'utf-8')
-        res.writeHead(200)
-        res.end('OK')
-      } else {
-        res.writeHead(404)
-        res.end('Not found')
-      }
-    } catch (err) {
-      console.error('Error:', err)
-      res.writeHead(500)
-      res.end('Internal error')
-    }
+    process.exit(code ?? 0)
   })
-  
-  fileServer.listen(fileServerPort, () => {
-    console.log(`🔄 File sync: http://localhost:${fileServerPort}`)
-  })
-  
-  // Serve static files
-  const distPath = join(__dirname, '..', 'dist')
-  
-  try {
-    await access(distPath)
-    
-    const { stat } = await import('fs/promises')
-    
-    const mimeTypes = {
-      '.html': 'text/html',
-      '.js': 'application/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon',
-    }
-    
-    const staticServer = createServer(async (req, res) => {
-      let reqPath = req.url === '/' ? '/index.html' : req.url
-      const fullPath = join(distPath, reqPath)
-      
-      try {
-        const stats = await stat(fullPath)
-        if (stats.isDirectory()) {
-          reqPath = join(reqPath, 'index.html')
-        }
-        
-        const content = await readFile(join(distPath, reqPath))
-        const ext = reqPath.substring(reqPath.lastIndexOf('.'))
-        const contentType = mimeTypes[ext] || 'application/octet-stream'
-        
-        res.writeHead(200, { 'Content-Type': contentType })
-        res.end(content)
-      } catch {
-        try {
-          const content = await readFile(join(distPath, 'index.html'))
-          res.writeHead(200, { 'Content-Type': 'text/html' })
-          res.end(content)
-        } catch {
-          res.writeHead(404)
-          res.end('Not found')
-        }
-      }
-    })
-    
-    staticServer.listen(port, () => {
-      console.log(`🚀 Board: http://localhost:${port}`)
-      console.log('')
-      console.log('Press Ctrl+C to stop')
-    })
-  } catch {
-    console.error('❌ dist folder not found. Run `npm run build` first.')
-    process.exit(1)
-  }
-  
+
   process.on('SIGINT', () => {
     console.log('\n👋 Shutting down...')
-    process.exit(0)
+    child.kill('SIGINT')
+  })
+
+  process.on('SIGTERM', () => {
+    child.kill('SIGTERM')
   })
 }
 

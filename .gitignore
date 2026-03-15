@@ -40,3 +40,5 @@ coverage
 .ralph
 mission-control.db
 mission-control.db-*
+mission-control.db.bak
+KANBAN.md
