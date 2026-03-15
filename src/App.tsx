@@ -1,14 +1,19 @@
 import { useEffect } from 'react';
 import { useMissionStore } from '@/store';
 import { useSSE } from '@/hooks/useSSE';
+import { useViewStore } from '@/store/views';
 import { Board } from '@/components/Board';
 import { AgentsSidebar } from '@/components/AgentsSidebar';
 import { LiveFeed } from '@/components/LiveFeed';
 import { TaskModal } from '@/components/TaskModal';
 import { Header } from '@/components/Header';
+import { TimelineView } from '@/components/TimelineView';
+import { CronsView } from '@/components/CronsView';
+import { OvernightView } from '@/components/OvernightView';
 
 function App() {
   const { setTasks, setAgents, setEvents, setIsLoading, selectedTask, setSelectedTask } = useMissionStore();
+  const { activeView } = useViewStore();
 
   useSSE();
 
@@ -37,14 +42,23 @@ function App() {
     load();
   }, [setTasks, setAgents, setEvents, setIsLoading]);
 
+  const renderView = () => {
+    switch (activeView) {
+      case 'timeline': return <TimelineView />;
+      case 'crons': return <CronsView />;
+      case 'overnight': return <OvernightView />;
+      default: return <Board />;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-bg-deep text-text-primary overflow-hidden">
       <AgentsSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
-        <Board />
+        {renderView()}
       </div>
-      <LiveFeed />
+      {activeView === 'board' && <LiveFeed />}
       {selectedTask && (
         <TaskModal task={selectedTask} onClose={() => setSelectedTask(null)} />
       )}

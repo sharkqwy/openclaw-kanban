@@ -6,6 +6,8 @@ Visual task management, agent orchestration, and real-time monitoring for OpenCl
 
 ## Quick Start
 
+### Local development
+
 ```bash
 npm install
 npm run dev
@@ -14,6 +16,16 @@ npm run dev
 This starts both:
 - **API server** on `http://localhost:18790` (Hono + SQLite)
 - **Frontend** on `http://localhost:5173` (Vite dev server, proxies API calls)
+
+### Packaged CLI / production build
+
+```bash
+npm run build
+npx openclaw-kanban
+```
+
+This starts the compiled Mission Control server and serves both the UI and API from:
+- **Mission Control** on `http://localhost:18790`
 
 ## Features
 

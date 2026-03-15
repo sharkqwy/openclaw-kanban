@@ -11,3 +11,7 @@ export { Header } from './Header';
 export { ActivityLog } from './ActivityLog';
 export { DeliverablesList } from './DeliverablesList';
 export { SessionsList } from './SessionsList';
+export { QuickAdd } from './QuickAdd';
+export { TimelineView } from './TimelineView';
+export { CronsView } from './CronsView';
+export { OvernightView } from './OvernightView';

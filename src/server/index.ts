@@ -1,15 +1,20 @@
 /**
- * Mission Control API Server (Hono + better-sqlite3)
+ * Nexus API Server (Hono + better-sqlite3)
  */
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { serve } from '@hono/node-server';
 import { v4 as uuid } from 'uuid';
+import os from 'os';
+import { execSync } from 'child_process';
 import { getDb, queryAll, queryOne, run } from './db/index.js';
 import { addClient, broadcast } from './sse.js';
+import { seedEpicIfNeeded } from './seed-epic.js';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { mkdirSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 import type { Task, Agent, TaskActivity, TaskDeliverable, Event as MCEvent } from '../shared/types.js';
 
 const app = new Hono();
@@ -18,18 +23,65 @@ app.use('*', cors());
 
 // ─── Health ──────────────────────────────────────────────
 app.get('/api/status', (c) => {
-  return c.json({ ok: true, version: '2.0.0' });
+  return c.json({ ok: true, version: '3.0.0-nexus' });
+});
+
+// ─── System Vitals ───────────────────────────────────────
+app.get('/api/system', (c) => {
+  const cpus = os.cpus();
+  const cpuUsage = cpus.reduce((acc, cpu) => {
+    const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+    const idle = cpu.times.idle;
+    return acc + ((total - idle) / total) * 100;
+  }, 0) / cpus.length;
+
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+
+  // Disk usage (macOS/Linux)
+  let diskUsed = 0, diskTotal = 0;
+  try {
+    const df = execSync('df -k / 2>/dev/null').toString().split('\n')[1]?.split(/\s+/);
+    if (df) {
+      diskTotal = parseInt(df[1]) * 1024;
+      diskUsed = parseInt(df[2]) * 1024;
+    }
+  } catch { /* ignore */ }
+
+  return c.json({
+    cpu: Math.round(cpuUsage),
+    memory: { used: usedMem, total: totalMem, percent: Math.round((usedMem / totalMem) * 100) },
+    disk: { used: diskUsed, total: diskTotal, percent: diskTotal ? Math.round((diskUsed / diskTotal) * 100) : 0 },
+    uptime: os.uptime(),
+  });
 });
 
 // ─── Tasks CRUD ──────────────────────────────────────────
+const TASK_FIELDS = ['title', 'description', 'status', 'priority', 'assigned_agent_id', 'due_date',
+  'parent_task_id', 'definition_of_done', 'tags', 'is_epic', 'review_feedback', 'task_order',
+  'planning_session_key', 'planning_messages', 'planning_complete', 'planning_spec', 'planning_agents', 'planning_dispatch_error'];
+
 app.get('/api/tasks', (c) => {
   const workspace = c.req.query('workspace_id');
   let sql = `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id`;
   const params: string[] = [];
   if (workspace) { sql += ' WHERE t.workspace_id = ?'; params.push(workspace); }
-  sql += ' ORDER BY t.updated_at DESC';
+  sql += ' ORDER BY t.task_order ASC, t.updated_at DESC';
   const tasks = queryAll<any>(sql, params).map(enrichTask);
+
+  // Attach child progress for EPICs
+  for (const task of tasks) {
+    if (task.is_epic) {
+      const children = queryAll<any>('SELECT status FROM tasks WHERE parent_task_id = ?', [task.id]);
+      task.child_progress = {
+        total: children.length,
+        done: children.filter((c: any) => c.status === 'done').length,
+      };
+    }
+  }
+
   return c.json(tasks);
 });
 
@@ -38,11 +90,13 @@ app.post('/api/tasks', async (c) => {
   const id = uuid();
   const now = new Date().toISOString();
   run(
-    `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, due_date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, due_date,
+     parent_task_id, definition_of_done, tags, is_epic, review_feedback, task_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, body.title, body.description || null, body.status || 'inbox', body.priority || 'normal',
      body.assigned_agent_id || null, body.created_by_agent_id || null, body.workspace_id || 'default',
-     body.due_date || null, now, now]
+     body.due_date || null, body.parent_task_id || null, body.definition_of_done || null,
+     body.tags || null, body.is_epic ? 1 : 0, body.review_feedback || null, body.task_order || 0, now, now]
   );
   const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
@@ -55,7 +109,32 @@ app.get('/api/tasks/:id', (c) => {
   const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [c.req.param('id')]);
   if (!task) return c.json({ error: 'Not found' }, 404);
-  return c.json(enrichTask(task));
+  const enriched = enrichTask(task);
+
+  // If EPIC, include children
+  if (enriched.is_epic) {
+    enriched.child_tasks = queryAll<any>(
+      `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+       FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
+       ORDER BY t.task_order ASC, t.created_at ASC`, [enriched.id]
+    ).map(enrichTask);
+    enriched.child_progress = {
+      total: enriched.child_tasks.length,
+      done: enriched.child_tasks.filter((c: any) => c.status === 'done').length,
+    };
+  }
+
+  return c.json(enriched);
+});
+
+// Get child tasks for an EPIC
+app.get('/api/tasks/:id/children', (c) => {
+  const children = queryAll<any>(
+    `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
+     ORDER BY t.task_order ASC, t.created_at ASC`, [c.req.param('id')]
+  ).map(enrichTask);
+  return c.json(children);
 });
 
 app.patch('/api/tasks/:id', async (c) => {
@@ -64,7 +143,7 @@ app.patch('/api/tasks/:id', async (c) => {
   const fields: string[] = [];
   const params: unknown[] = [];
 
-  for (const key of ['title', 'description', 'status', 'priority', 'assigned_agent_id', 'due_date', 'planning_session_key', 'planning_messages', 'planning_complete', 'planning_spec', 'planning_agents', 'planning_dispatch_error']) {
+  for (const key of TASK_FIELDS) {
     if (key in body) { fields.push(`${key} = ?`); params.push(body[key]); }
   }
   if (fields.length === 0) return c.json({ error: 'No fields' }, 400);
@@ -230,15 +309,10 @@ app.get('/api/events/stream', (c) => {
         try { controller.enqueue(encoder.encode(data)); } catch { /* closed */ }
       };
 
-      // Send initial ping
       send(': connected\n\n');
-
       const remove = addClient(send);
-
-      // Keep-alive every 30s
       const keepAlive = setInterval(() => send(': ping\n\n'), 30000);
 
-      // Cleanup when client disconnects
       c.req.raw.signal.addEventListener('abort', () => {
         remove();
         clearInterval(keepAlive);
@@ -277,7 +351,6 @@ app.patch('/api/openclaw/sessions/:id', async (c) => {
   }
   fields.push('updated_at = ?'); params.push(new Date().toISOString());
   params.push(id);
-  // Try matching by id or openclaw_session_id
   run(`UPDATE openclaw_sessions SET ${fields.join(', ')} WHERE id = ? OR openclaw_session_id = ?`, [...params.slice(0, -1), id, id]);
   return c.json({ ok: true });
 });
@@ -288,22 +361,28 @@ app.delete('/api/openclaw/sessions/:id', (c) => {
   return c.json({ ok: true });
 });
 
-// ─── Task Dispatch ───────────────────────────────────────
+// ─── Task Dispatch (Phase 2: Auto-dispatch hook) ─────────
 app.post('/api/tasks/:id/dispatch', async (c) => {
   const id = c.req.param('id');
-  const task = queryOne<Task>('SELECT * FROM tasks WHERE id = ?', [id]);
+  const task = queryOne<any>('SELECT t.*, a.name as agent_name FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?', [id]);
   if (!task) return c.json({ error: 'Task not found' }, 404);
   if (!task.assigned_agent_id) return c.json({ error: 'No agent assigned' }, 400);
 
-  // Move to in_progress
-  run('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', ['in_progress', new Date().toISOString(), id]);
+  run('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?', ['active', new Date().toISOString(), id]);
 
-  // Log activity
+  // Auto-dispatch hook: log for now, wire to Gateway later
+  const feedbackCtx = task.review_feedback ? ` | Review feedback: ${task.review_feedback}` : '';
+  console.log(`[AUTO-DISPATCH] Task "${task.title}" → Agent ${task.agent_name} (${task.assigned_agent_id})${feedbackCtx}`);
+  console.log(`[AUTO-DISPATCH] Would call: sessions_spawn(agentId=${task.assigned_agent_id}, taskId=${id})`);
+
   const actId = uuid();
+  const message = task.review_feedback
+    ? `Task re-dispatched with feedback: "${task.review_feedback}"`
+    : `Task dispatched to agent`;
   run(
     `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
      VALUES (?, ?, ?, 'status_changed', ?, ?)`,
-    [actId, id, task.assigned_agent_id, `Task dispatched to agent`, new Date().toISOString()]
+    [actId, id, task.assigned_agent_id, message, new Date().toISOString()]
   );
 
   const updated = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
@@ -312,7 +391,74 @@ app.post('/api/tasks/:id/dispatch', async (c) => {
   return c.json({ ok: true, task: enrichTask(updated) });
 });
 
+// ─── Crons (Phase 2: mock data) ─────────────────────────
+app.get('/api/crons', (c) => {
+  const mockCrons = [
+    { id: '1', name: 'daily-email-rollup', schedule: '0 9 * * *', last_run: '2026-02-17T09:00:00Z', next_run: '2026-02-18T09:00:00Z', status: 'ok', agent: 'Alex' },
+    { id: '2', name: 'seo-keyword-scan', schedule: '0 */6 * * *', last_run: '2026-02-17T18:00:00Z', next_run: '2026-02-18T00:00:00Z', status: 'ok', agent: 'Leo' },
+    { id: '3', name: 'competitor-monitor', schedule: '0 8 * * 1', last_run: '2026-02-10T08:00:00Z', next_run: '2026-02-17T08:00:00Z', status: 'ok', agent: 'Leo' },
+    { id: '4', name: 'backup-workspace', schedule: '0 3 * * *', last_run: '2026-02-17T03:00:00Z', next_run: '2026-02-18T03:00:00Z', status: 'ok', agent: 'Noah' },
+    { id: '5', name: 'heartbeat-check', schedule: '*/30 * * * *', last_run: '2026-02-17T21:30:00Z', next_run: '2026-02-17T22:00:00Z', status: 'running', agent: 'System' },
+  ];
+  return c.json(mockCrons);
+});
+
+app.post('/api/crons/:id/trigger', (c) => {
+  const id = c.req.param('id');
+  console.log(`[CRON-TRIGGER] Manual trigger for cron ${id}`);
+  return c.json({ ok: true, message: `Cron ${id} triggered` });
+});
+
+// ─── Overnight Summary (Phase 3) ────────────────────────
+app.get('/api/overnight', (c) => {
+  // Get events from last 8 hours, grouped by agent
+  const cutoff = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+  const events = queryAll<any>(
+    `SELECT e.*, a.name as agent_name, a.avatar_emoji as agent_emoji
+     FROM events e LEFT JOIN agents a ON e.agent_id = a.id
+     WHERE e.created_at > ? ORDER BY e.created_at DESC`, [cutoff]
+  );
+
+  // Group by agent
+  const grouped = new Map<string, { agent_id: string; agent_name: string; agent_emoji: string; events: any[] }>();
+  for (const e of events) {
+    const key = e.agent_id || 'system';
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        agent_id: key,
+        agent_name: e.agent_name || 'System',
+        agent_emoji: e.agent_emoji || '⚙️',
+        events: [],
+      });
+    }
+    grouped.get(key)!.events.push(e);
+  }
+
+  // Generate summaries
+  const summaries = Array.from(grouped.values()).map((g) => {
+    const taskEvents = g.events.filter((e: any) => e.type.startsWith('task_'));
+    const completed = g.events.filter((e: any) => e.type === 'task_completed').length;
+    const parts = [];
+    if (completed > 0) parts.push(`${completed} task${completed > 1 ? 's' : ''} completed`);
+    if (taskEvents.length - completed > 0) parts.push(`${taskEvents.length - completed} other task events`);
+    if (parts.length === 0) parts.push(`${g.events.length} events`);
+
+    return {
+      agent_id: g.agent_id,
+      agent_name: g.agent_name,
+      agent_emoji: g.agent_emoji,
+      summary: parts.join(', '),
+      event_count: g.events.length,
+      events: g.events,
+    };
+  });
+
+  return c.json(summaries);
+});
+
 // ─── KANBAN.md Sync (legacy) ─────────────────────────────
+const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
+const DIST_ROOT = process.env.DIST_ROOT || resolve(SERVER_DIR, '../../dist');
 const KANBAN_PATH = process.env.KANBAN_FILE || resolve(process.cwd(), 'KANBAN.md');
 
 app.get('/read', async (c) => {
@@ -343,14 +489,17 @@ function enrichTask(row: any): Task {
   return task;
 }
 
+// ─── Static files (serve built frontend) ─────────────────
+app.use('/*', serveStatic({ root: DIST_ROOT }));
+
 // ─── Start ───────────────────────────────────────────────
 const port = parseInt(process.env.PORT || '18790');
 
-// Ensure DB is initialized
 getDb();
+seedEpicIfNeeded();
 
-serve({ fetch: app.fetch, port }, () => {
-  console.log(`🚀 Mission Control API running at http://localhost:${port}`);
+serve({ fetch: app.fetch, hostname: '0.0.0.0', port }, () => {
+  console.log(`🚀 Nexus API running at http://0.0.0.0:${port}`);
 });
 
 export default app;

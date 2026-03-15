@@ -1,7 +1,6 @@
 /**
  * Database Schema for Nexus (Mission Control v3)
  */
-
 export const schema = `
 -- Agents table
 CREATE TABLE IF NOT EXISTS agents (
@@ -105,20 +104,19 @@ CREATE INDEX IF NOT EXISTS idx_activities_task ON task_activities(task_id, creat
 CREATE INDEX IF NOT EXISTS idx_deliverables_task ON task_deliverables(task_id);
 CREATE INDEX IF NOT EXISTS idx_openclaw_sessions_task ON openclaw_sessions(task_id);
 `;
-
 /**
  * Migration: add Phase 1 columns to existing databases gracefully.
  * Called after schema init. Each ALTER TABLE is wrapped in try/catch
  * so it's safe to run repeatedly (columns may already exist).
  */
 export const migrations = [
-  // Phase 1 columns
-  `ALTER TABLE tasks ADD COLUMN parent_task_id TEXT REFERENCES tasks(id)`,
-  `ALTER TABLE tasks ADD COLUMN definition_of_done TEXT`,
-  `ALTER TABLE tasks ADD COLUMN tags TEXT`,
-  `ALTER TABLE tasks ADD COLUMN is_epic INTEGER DEFAULT 0`,
-  `ALTER TABLE tasks ADD COLUMN review_feedback TEXT`,
-  `ALTER TABLE tasks ADD COLUMN task_order INTEGER DEFAULT 0`,
-  // Migrate old statuses to new ones
-  `UPDATE tasks SET status = 'active' WHERE status IN ('assigned', 'in_progress', 'testing')`,
+    // Phase 1 columns
+    `ALTER TABLE tasks ADD COLUMN parent_task_id TEXT REFERENCES tasks(id)`,
+    `ALTER TABLE tasks ADD COLUMN definition_of_done TEXT`,
+    `ALTER TABLE tasks ADD COLUMN tags TEXT`,
+    `ALTER TABLE tasks ADD COLUMN is_epic INTEGER DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN review_feedback TEXT`,
+    `ALTER TABLE tasks ADD COLUMN task_order INTEGER DEFAULT 0`,
+    // Migrate old statuses to new ones
+    `UPDATE tasks SET status = 'active' WHERE status IN ('assigned', 'in_progress', 'testing')`,
 ];

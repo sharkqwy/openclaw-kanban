@@ -28,7 +28,7 @@ export function LiveFeed() {
 
   if (minimized) {
     return (
-      <aside className="w-10 bg-bg-surface border-l border-border-subtle flex flex-col items-center py-3">
+      <aside className="w-11 bg-bg-surface border-l border-border-subtle flex flex-col items-center py-3 transition-all duration-250 ease-out">
         <button onClick={() => setMinimized(false)} className="p-1 rounded hover:bg-bg-elevated text-text-secondary">
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -42,7 +42,7 @@ export function LiveFeed() {
   }
 
   return (
-    <aside className="w-72 bg-bg-surface border-l border-border-subtle flex flex-col shrink-0">
+    <aside className="w-[280px] bg-bg-surface border-l border-border-subtle flex flex-col shrink-0 transition-all duration-250 ease-out">
       {/* Header */}
       <div className="p-3 border-b border-border-subtle">
         <div className="flex items-center justify-between mb-3">
@@ -69,7 +69,10 @@ export function LiveFeed() {
       {/* Events */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {filtered.length === 0 ? (
-          <div className="text-center py-8 text-text-muted text-xs">No events yet</div>
+          <div className="flex flex-col items-center py-10 text-text-muted/50 text-[11px]">
+            <span className="text-3xl mb-2 opacity-30">📡</span>
+            <span>No events yet</span>
+          </div>
         ) : (
           <AnimatePresence>
             {filtered.map((event) => (
