@@ -12,7 +12,27 @@ import { addClient, broadcast } from './sse.js';
 import { readFile, writeFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { mkdirSync, existsSync } from 'fs';
-import type { Task, Agent, TaskActivity, TaskDeliverable, Event as MCEvent } from '../shared/types.js';
+import type { Task, Agent, TaskActivity, TaskDeliverable, Event as MCEvent, AgentStatus, TaskPriority, TaskStatus } from '../shared/types.js';
+
+interface TaskRow extends Task {
+  agent_name?: string;
+  agent_emoji?: string;
+  agent_role?: string;
+}
+
+interface TaskStatusRow {
+  status: TaskStatus;
+}
+
+interface MetricsTaskRow {
+  status: TaskStatus;
+  priority: TaskPriority;
+  is_epic: number;
+}
+
+interface AgentStatusRow {
+  status: AgentStatus;
+}
 
 const app = new Hono();
 
@@ -66,15 +86,15 @@ app.get('/api/tasks', (c) => {
   const params: string[] = [];
   if (workspace) { sql += ' WHERE t.workspace_id = ?'; params.push(workspace); }
   sql += ' ORDER BY t.task_order ASC, t.updated_at DESC';
-  const tasks = queryAll<any>(sql, params).map(enrichTask);
+  const tasks = queryAll<TaskRow>(sql, params).map((task) => enrichTask(task)!);
 
   // Attach child progress for EPICs
   for (const task of tasks) {
     if (task.is_epic) {
-      const children = queryAll<any>('SELECT status FROM tasks WHERE parent_task_id = ?', [task.id]);
+      const children = queryAll<TaskStatusRow>('SELECT status FROM tasks WHERE parent_task_id = ?', [task.id]);
       task.child_progress = {
         total: children.length,
-        done: children.filter((c: any) => c.status === 'done').length,
+        done: children.filter((child) => child.status === 'done').length,
       };
     }
   }
@@ -95,29 +115,29 @@ app.post('/api/tasks', async (c) => {
      body.due_date || null, body.parent_task_id || null, body.definition_of_done || null,
      body.tags || null, body.is_epic ? 1 : 0, body.review_feedback || null, body.task_order || 0, now, now]
   );
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
-  const enriched = enrichTask(task);
+  const enriched = enrichTask(task)!;
   broadcast({ type: 'task_created', payload: enriched });
   return c.json(enriched, 201);
 });
 
 app.get('/api/tasks/:id', (c) => {
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [c.req.param('id')]);
   if (!task) return c.json({ error: 'Not found' }, 404);
-  const enriched = enrichTask(task);
+  const enriched = enrichTask(task)!;
 
   // If EPIC, include children
   if (enriched.is_epic) {
-    enriched.child_tasks = queryAll<any>(
+    enriched.child_tasks = queryAll<TaskRow>(
       `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
        FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
        ORDER BY t.task_order ASC, t.created_at ASC`, [enriched.id]
-    ).map(enrichTask);
+    ).map((child) => enrichTask(child)!);
     enriched.child_progress = {
       total: enriched.child_tasks.length,
-      done: enriched.child_tasks.filter((c: any) => c.status === 'done').length,
+      done: enriched.child_tasks.filter((child) => child.status === 'done').length,
     };
   }
 
@@ -126,11 +146,11 @@ app.get('/api/tasks/:id', (c) => {
 
 // Get child tasks for an EPIC
 app.get('/api/tasks/:id/children', (c) => {
-  const children = queryAll<any>(
+  const children = queryAll<TaskRow>(
     `SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
      FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.parent_task_id = ?
      ORDER BY t.task_order ASC, t.created_at ASC`, [c.req.param('id')]
-  ).map(enrichTask);
+  ).map((child) => enrichTask(child)!);
   return c.json(children);
 });
 
@@ -149,9 +169,9 @@ app.patch('/api/tasks/:id', async (c) => {
   params.push(id);
   run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  const task = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const task = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
-  const enriched = enrichTask(task);
+  const enriched = enrichTask(task)!;
   broadcast({ type: 'task_updated', payload: enriched });
   return c.json(enriched);
 });
@@ -374,10 +394,11 @@ app.post('/api/tasks/:id/dispatch', async (c) => {
     [actId, id, task.assigned_agent_id, `Task dispatched to agent`, new Date().toISOString()]
   );
 
-  const updated = queryOne<any>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
+  const updated = queryOne<TaskRow>(`SELECT t.*, a.name as agent_name, a.avatar_emoji as agent_emoji, a.role as agent_role
     FROM tasks t LEFT JOIN agents a ON t.assigned_agent_id = a.id WHERE t.id = ?`, [id]);
-  broadcast({ type: 'task_updated', payload: enrichTask(updated) });
-  return c.json({ ok: true, task: enrichTask(updated) });
+  const enriched = enrichTask(updated)!;
+  broadcast({ type: 'task_updated', payload: enriched });
+  return c.json({ ok: true, task: enriched });
 });
 
 // ─── Comments ────────────────────────────────────────────
@@ -407,11 +428,11 @@ app.post('/api/tasks/:id/comments', async (c) => {
 
 // ─── Dashboard Metrics ───────────────────────────────────
 app.get('/api/metrics', (c) => {
-  const tasks = queryAll<any>('SELECT status, priority, is_epic FROM tasks');
-  const agents = queryAll<any>('SELECT status FROM agents');
+  const tasks = queryAll<MetricsTaskRow>('SELECT status, priority, is_epic FROM tasks');
+  const agents = queryAll<AgentStatusRow>('SELECT status FROM agents');
 
-  const byStatus: Record<string, number> = {};
-  const byPriority: Record<string, number> = {};
+  const byStatus: Partial<Record<TaskStatus, number>> = {};
+  const byPriority: Partial<Record<TaskPriority, number>> = {};
   let epicTotal = 0, epicDone = 0;
 
   for (const t of tasks) {
@@ -423,9 +444,9 @@ app.get('/api/metrics', (c) => {
     }
   }
 
-  const agentStats = { total: agents.length, working: 0, standby: 0, offline: 0 };
-  for (const a of agents) {
-    if (a.status in agentStats) (agentStats as any)[a.status]++;
+  const agentStats: Record<AgentStatus | 'total', number> = { total: agents.length, working: 0, standby: 0, offline: 0 };
+  for (const agent of agents) {
+    agentStats[agent.status]++;
   }
 
   return c.json({
@@ -443,8 +464,8 @@ app.get('/read', async (c) => {
   try {
     const content = await readFile(KANBAN_PATH, 'utf-8');
     return c.text(content);
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return c.text('File not found', 404);
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return c.text('File not found', 404);
     throw err;
   }
 });
@@ -458,11 +479,21 @@ app.post('/write', async (c) => {
 });
 
 // ─── Helper ──────────────────────────────────────────────
-function enrichTask(row: any): Task {
+function enrichTask(row?: TaskRow): Task | undefined {
   if (!row) return row;
   const { agent_name, agent_emoji, agent_role, ...task } = row;
   if (agent_name) {
-    task.assigned_agent = { name: agent_name, avatar_emoji: agent_emoji, role: agent_role };
+    task.assigned_agent = {
+      id: row.assigned_agent_id ?? '',
+      name: agent_name,
+      role: agent_role ?? '',
+      avatar_emoji: agent_emoji ?? '🤖',
+      status: 'standby',
+      is_master: 0,
+      workspace_id: row.workspace_id,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
   }
   return task;
 }
